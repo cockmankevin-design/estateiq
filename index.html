@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estate IQ — Intelligent Property Discovery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+/* ========== RESET & VARIABLES ========== */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --bg-primary: #0a0a0c;
+  --bg-secondary: #111116;
+  --bg-card: #16161b;
+  --bg-card-hover: #1c1c22;
+  --bg-glass: rgba(22,22,27,0.82);
+  --gold: #c9a84c;
+  --gold-light: #e8d48b;
+  --gold-dim: #8a7230;
+  --gold-glow: rgba(201,168,76,0.25);
+  --text-primary: #f0ece2;
+  --text-secondary: #9e9a90;
+  --text-muted: #5c5952;
+  --accent-green: #4ecb71;
+  --accent-blue: #4a9eff;
+  --accent-red: #e85d5d;
+  --accent-purple: #a478e8;
+  --border: rgba(201,168,76,0.12);
+  --border-light: rgba(240,236,226,0.06);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 20px;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --shadow: 0 8px 32px rgba(0,0,0,0.4);
+  --shadow-gold: 0 4px 24px rgba(201,168,76,0.15);
+}
+
+html { font-size: 16px; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ========== INTRO ANIMATION ========== */
+#intro-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg-primary);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+  transition: opacity 0.8s cubic-bezier(0.4,0,0.2,1), transform 1s cubic-bezier(0.4,0,0.2,1);
+}
+#intro-overlay.fade-out {
+  opacity: 0;
+  transform: scale(1.15);
+  pointer-events: none;
+}
+
+canvas#grid-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+}
+
+.intro-content {
+  position: relative; z-index: 2;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(30px);
+  animation: introReveal 1s 0.5s cubic-bezier(0.16,1,0.3,1) forwards;
+}
+
+.intro-logo {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 40%, var(--gold-dim) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 40px var(--gold-glow));
+  line-height: 1.1;
+}
+
+.intro-tagline {
+  font-family: var(--font-body);
+  font-size: clamp(0.85rem, 2vw, 1.15rem);
+  color: var(--text-secondary);
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  margin-top: 1rem;
+  font-weight: 300;
+}
+
+.intro-pulse {
+  width: 60px; height: 2px;
+  background: var(--gold);
+  margin: 1.5rem auto 0;
+  animation: pulse 1.5s ease-in-out infinite;
+  border-radius: 1px;
+}
+
+@keyframes introReveal {
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scaleX(0.6); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
+
+/* ========== NAVBAR ========== */
+#navbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  height: 64px;
+  background: rgba(10,10,12,0.85);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2rem;
+  transform: translateY(-100%);
+  transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+}
+#navbar.visible { transform: translateY(0); }
+
+.nav-brand {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  cursor: pointer;
+  user-select: none;
+}
+
+.nav-links {
+  display: flex; align-items: center; gap: 0.25rem;
+}
+.nav-link {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border: none; background: none;
+  letter-spacing: 0.02em;
+  position: relative;
+}
+.nav-link:hover { color: var(--text-primary); background: var(--border-light); }
+.nav-link.active {
+  color: var(--gold);
+  background: rgba(201,168,76,0.08);
+}
+.nav-link.active::after {
+  content: '';
+  position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
+  width: 16px; height: 2px;
+  background: var(--gold);
+  border-radius: 1px;
+}
+
+.nav-hamburger {
+  display: none;
+  flex-direction: column; gap: 5px;
+  cursor: pointer; background: none; border: none; padding: 4px;
+}
+.nav-hamburger span {
+  width: 22px; height: 2px; background: var(--text-secondary);
+  transition: all 0.3s ease; border-radius: 1px;
+}
+
+/* ========== MAIN LAYOUT ========== */
+#app {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+#app.visible { opacity: 1; }
+
+.view { display: none; min-height: 100vh; padding-top: 64px; }
+.view.active { display: block; }
+
+/* ========== MAP VIEW ========== */
+#map-view { position: relative; }
+#map {
+  width: 100%;
+  height: calc(100vh - 64px);
+}
+.leaflet-tile-pane { filter: brightness(0.7) saturate(0.3) contrast(1.1); }
+.leaflet-control-zoom a {
+  background: var(--bg-card) !important;
+  color: var(--gold) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-control-attribution { display: none !important; }
+
+/* Property popup */
+.leaflet-popup-content-wrapper {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow) !important;
+  color: var(--text-primary) !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+.leaflet-popup-tip { background: var(--bg-card) !important; border: 1px solid var(--border) !important; }
+.leaflet-popup-close-button { color: var(--text-muted) !important; font-size: 20px !important; }
+
+.popup-card { width: 280px; }
+.popup-img {
+  width: 100%; height: 140px;
+  object-fit: cover;
+  display: block;
+}
+.popup-body { padding: 1rem; }
+.popup-price {
+  font-family: var(--font-display);
+  font-size: 1.3rem; font-weight: 700;
+  color: var(--gold);
+}
+.popup-address { font-size: 0.8rem; color: var(--text-secondary); margin: 0.3rem 0 0.6rem; }
+.popup-stats {
+  display: flex; gap: 1rem; font-size: 0.75rem; color: var(--text-muted);
+}
+.popup-stat span { color: var(--text-primary); font-weight: 600; }
+.popup-tags { display: flex; gap: 0.4rem; margin-top: 0.7rem; flex-wrap: wrap; }
+.popup-tag {
+  font-size: 0.65rem; padding: 0.2rem 0.55rem;
+  border-radius: 20px; font-weight: 600;
+  letter-spacing: 0.03em; text-transform: uppercase;
+}
+.tag-rental { background: rgba(78,203,113,0.12); color: var(--accent-green); }
+.tag-flip { background: rgba(232,93,93,0.12); color: var(--accent-red); }
+.tag-residential { background: rgba(74,158,255,0.12); color: var(--accent-blue); }
+
+/* Custom marker */
+.custom-marker {
+  width: 36px; height: 36px;
+  background: var(--gold);
+  border: 3px solid var(--bg-primary);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.5), 0 0 20px var(--gold-glow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+}
+.custom-marker::after {
+  content: '';
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  width: 10px; height: 10px;
+  background: var(--bg-primary);
+  border-radius: 50%;
+}
+.custom-marker:hover {
+  transform: rotate(-45deg) scale(1.15);
+  box-shadow: 0 5px 20px rgba(0,0,0,0.6), 0 0 30px var(--gold-glow);
+}
+
+/* Map sidebar filter panel */
+.map-filters {
+  position: absolute; top: 80px; left: 1rem; z-index: 800;
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  width: 280px;
+  box-shadow: var(--shadow);
+  transform: translateX(0);
+  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+}
+.map-filters.collapsed { transform: translateX(calc(-100% - 1rem)); }
+
+.filter-toggle {
+  position: absolute; top: 80px; left: 1rem; z-index: 799;
+  width: 44px; height: 44px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--gold);
+  font-size: 1.1rem;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow);
+}
+.filter-toggle:hover { background: var(--bg-card-hover); }
+.filter-toggle.hidden { opacity: 0; pointer-events: none; }
+
+.filter-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1rem;
+}
+.filter-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem; font-weight: 700;
+  color: var(--gold);
+}
+.filter-close {
+  background: none; border: none;
+  color: var(--text-muted); cursor: pointer;
+  font-size: 1.2rem; transition: color 0.2s;
+}
+.filter-close:hover { color: var(--text-primary); }
+
+.filter-group { margin-bottom: 1rem; }
+.filter-label {
+  font-size: 0.7rem; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--text-muted);
+  font-weight: 600; margin-bottom: 0.5rem; display: block;
+}
+
+.filter-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.filter-chip {
+  padding: 0.35rem 0.7rem;
+  border-radius: 20px;
+  font-size: 0.75rem; font-weight: 500;
+  background: rgba(240,236,226,0.04);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.filter-chip:hover { border-color: var(--gold-dim); color: var(--text-primary); }
+.filter-chip.active {
+  background: rgba(201,168,76,0.12);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.filter-range {
+  display: flex; gap: 0.5rem; align-items: center;
+}
+.filter-input {
+  flex: 1;
+  background: rgba(240,236,226,0.04);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.filter-input:focus { border-color: var(--gold-dim); }
+.filter-input::placeholder { color: var(--text-muted); }
+.filter-sep { color: var(--text-muted); font-size: 0.8rem; }
+
+.filter-select {
+  width: 100%;
+  background: rgba(240,236,226,0.04);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239e9a90' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+}
+.filter-select option { background: var(--bg-card); color: var(--text-primary); }
+
+.filter-apply {
+  width: 100%;
+  padding: 0.6rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+  color: var(--bg-primary);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: all 0.25s ease;
+  margin-top: 0.5rem;
+}
+.filter-apply:hover { box-shadow: var(--shadow-gold); transform: translateY(-1px); }
+
+/* Property count badge */
+.map-count {
+  position: absolute; bottom: 2rem; left: 50%;
+  transform: translateX(-50%); z-index: 800;
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 30px;
+  padding: 0.6rem 1.5rem;
+  font-size: 0.8rem; color: var(--text-secondary);
+  box-shadow: var(--shadow);
+}
+.map-count strong { color: var(--gold); font-weight: 700; }
+
+/* ========== LISTINGS VIEW ========== */
+#listings-view { background: var(--bg-primary); }
+
+.listings-header {
+  padding: 3rem 2rem 1.5rem;
+  max-width: 1400px; margin: 0 auto;
+}
+.listings-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.listings-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.95rem; margin-top: 0.5rem;
+  font-weight: 300;
+}
+
+.listings-toolbar {
+  display: flex; gap: 0.5rem; flex-wrap: wrap;
+  padding: 0 2rem 1.5rem;
+  max-width: 1400px; margin: 0 auto;
+  align-items: center;
+}
+.toolbar-chip {
+  padding: 0.45rem 1rem;
+  border-radius: 30px;
+  font-size: 0.8rem; font-weight: 500;
+  background: rgba(240,236,226,0.04);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.toolbar-chip:hover { border-color: var(--gold-dim); color: var(--text-primary); }
+.toolbar-chip.active {
+  background: rgba(201,168,76,0.12);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.listings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
+  padding: 0 2rem 4rem;
+  max-width: 1400px; margin: 0 auto;
+}
+
+.property-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.35s cubic-bezier(0.16,1,0.3,1);
+  position: relative;
+}
+.property-card:hover {
+  border-color: var(--border);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow), 0 0 40px rgba(201,168,76,0.06);
+}
+
+.card-img-wrap {
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+}
+.card-img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+}
+.property-card:hover .card-img { transform: scale(1.06); }
+
+.card-tags {
+  position: absolute; top: 0.75rem; left: 0.75rem;
+  display: flex; gap: 0.35rem;
+}
+.card-tag {
+  font-size: 0.65rem; padding: 0.25rem 0.6rem;
+  border-radius: 20px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+.card-tag.tag-rental { background: rgba(78,203,113,0.85); color: #0a0a0c; }
+.card-tag.tag-flip { background: rgba(232,93,93,0.85); color: #fff; }
+.card-tag.tag-residential { background: rgba(74,158,255,0.85); color: #fff; }
+
+.card-save {
+  position: absolute; top: 0.75rem; right: 0.75rem;
+  width: 34px; height: 34px;
+  background: rgba(10,10,12,0.6);
+  backdrop-filter: blur(8px);
+  border: none;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+.card-save:hover { color: var(--accent-red); background: rgba(10,10,12,0.8); }
+.card-save.saved { color: var(--accent-red); }
+
+.card-body { padding: 1.25rem; }
+.card-price {
+  font-family: var(--font-display);
+  font-size: 1.5rem; font-weight: 700;
+  color: var(--gold);
+}
+.card-address {
+  font-size: 0.85rem; color: var(--text-secondary);
+  margin: 0.25rem 0 0.75rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.card-stats {
+  display: flex; gap: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-light);
+}
+.card-stat {
+  font-size: 0.78rem; color: var(--text-muted);
+}
+.card-stat-val {
+  font-weight: 700; color: var(--text-primary);
+  margin-right: 0.2rem;
+}
+
+.card-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--border-light);
+  background: rgba(240,236,226,0.015);
+}
+.card-roi {
+  font-size: 0.75rem; color: var(--accent-green);
+  font-weight: 600;
+}
+.card-roi span { color: var(--text-muted); font-weight: 400; }
+.card-detail-btn {
+  font-size: 0.75rem;
+  color: var(--gold);
+  background: none;
+  border: 1px solid var(--gold-dim);
+  border-radius: 20px;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.card-detail-btn:hover {
+  background: var(--gold);
+  color: var(--bg-primary);
+}
+
+/* ========== ABOUT VIEW ========== */
+#about-view {
+  background: var(--bg-primary);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 6rem 2rem 4rem;
+  text-align: center;
+}
+.about-badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--gold);
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  padding: 0.4rem 1.2rem;
+  border: 1px solid var(--gold-dim);
+  border-radius: 30px;
+  display: inline-block;
+}
+.about-heading {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 700;
+  max-width: 700px;
+  line-height: 1.2;
+  margin-bottom: 1.5rem;
+}
+.about-heading em {
+  font-style: normal;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.about-text {
+  max-width: 560px;
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  line-height: 1.7;
+  margin-bottom: 2.5rem;
+}
+.about-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+  max-width: 800px;
+  width: 100%;
+  margin-top: 1rem;
+}
+.about-feature {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  text-align: left;
+  transition: border-color 0.3s;
+}
+.about-feature:hover { border-color: var(--border); }
+.about-feature-icon {
+  font-size: 1.6rem;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+.about-feature-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem; font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+.about-feature-desc {
+  font-size: 0.83rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ========== PROPERTY DETAIL MODAL ========== */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.35s ease;
+  padding: 1rem;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  max-width: 640px; width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  transform: translateY(20px) scale(0.97);
+  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+}
+.modal-overlay.open .modal { transform: translateY(0) scale(1); }
+
+.modal-img { width: 100%; height: 260px; object-fit: cover; display: block; }
+
+.modal-body { padding: 2rem; }
+.modal-price {
+  font-family: var(--font-display);
+  font-size: 2rem; font-weight: 700;
+  color: var(--gold);
+}
+.modal-address { color: var(--text-secondary); margin: 0.3rem 0 1rem; }
+.modal-tags { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; }
+
+.modal-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.modal-stat-box {
+  background: rgba(240,236,226,0.03);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem;
+  text-align: center;
+}
+.modal-stat-val {
+  font-family: var(--font-display);
+  font-size: 1.2rem; font-weight: 700;
+  color: var(--text-primary);
+}
+.modal-stat-label {
+  font-size: 0.68rem; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin-top: 0.2rem;
+}
+
+.modal-desc {
+  color: var(--text-secondary);
+  line-height: 1.6; font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.modal-actions { display: flex; gap: 0.75rem; }
+.modal-btn {
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.85rem; font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all 0.25s ease;
+  text-align: center;
+}
+.modal-btn-primary {
+  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+  color: var(--bg-primary);
+  border: none;
+}
+.modal-btn-primary:hover { box-shadow: var(--shadow-gold); transform: translateY(-2px); }
+.modal-btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.modal-btn-secondary:hover { border-color: var(--gold-dim); color: var(--text-primary); }
+
+.modal-close {
+  position: absolute; top: 1rem; right: 1rem;
+  width: 36px; height: 36px;
+  background: rgba(10,10,12,0.7);
+  backdrop-filter: blur(8px);
+  border: none; border-radius: 50%;
+  color: #fff; font-size: 1.2rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+  z-index: 2;
+}
+.modal-close:hover { background: rgba(10,10,12,0.9); }
+
+/* Scrollbar */
+.modal::-webkit-scrollbar { width: 6px; }
+.modal::-webkit-scrollbar-track { background: transparent; }
+.modal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ========== NO RESULTS ========== */
+.no-results {
+  grid-column: 1/-1;
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-muted);
+}
+.no-results-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; }
+.no-results-text { font-size: 1.1rem; }
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 768px) {
+  .nav-links {
+    display: none;
+    position: fixed; top: 64px; left: 0; right: 0;
+    background: rgba(10,10,12,0.95);
+    backdrop-filter: blur(20px);
+    flex-direction: column;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-links.open { display: flex; }
+  .nav-hamburger { display: flex; }
+
+  .map-filters { width: calc(100% - 2rem); left: 1rem; }
+  .listings-grid { grid-template-columns: 1fr; }
+  .modal-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .modal-img { height: 200px; }
+}
+
+/* ========== ANIMATIONS ========== */
+.animate-in {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) forwards;
+}
+@keyframes fadeUp {
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+
+<!-- INTRO OVERLAY -->
+<div id="intro-overlay">
+  <canvas id="grid-canvas"></canvas>
+  <div class="intro-content">
+    <div class="intro-logo">Estate IQ</div>
+    <div class="intro-tagline">Intelligent Property Discovery</div>
+    <div class="intro-pulse"></div>
+  </div>
+</div>
+
+<!-- NAVBAR -->
+<nav id="navbar">
+  <div class="nav-brand" onclick="goHome()">Estate IQ</div>
+  <div class="nav-links" id="navLinks">
+    <button class="nav-link active" data-view="map-view" onclick="switchView('map-view')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16"/><path d="M16 6v16"/></svg>
+      Map
+    </button>
+    <button class="nav-link" data-view="listings-view" onclick="switchView('listings-view')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Listings
+    </button>
+    <button class="nav-link" data-view="about-view" onclick="switchView('about-view')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+      About
+    </button>
+  </div>
+  <button class="nav-hamburger" id="hamburger" onclick="toggleMobileNav()">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<!-- APP CONTAINER -->
+<div id="app">
+
+  <!-- MAP VIEW -->
+  <div id="map-view" class="view active">
+    <div id="map"></div>
+
+    <button class="filter-toggle hidden" id="filterToggle" onclick="openFilters()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+    </button>
+
+    <div class="map-filters" id="mapFilters">
+      <div class="filter-header">
+        <span class="filter-title">Filters</span>
+        <button class="filter-close" onclick="closeFilters()">&times;</button>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">Property Type</label>
+        <div class="filter-chips" id="typeChips">
+          <span class="filter-chip active" data-type="all" onclick="toggleTypeChip(this)">All</span>
+          <span class="filter-chip" data-type="rental" onclick="toggleTypeChip(this)">Rental</span>
+          <span class="filter-chip" data-type="flip" onclick="toggleTypeChip(this)">Flip</span>
+          <span class="filter-chip" data-type="residential" onclick="toggleTypeChip(this)">Residential</span>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">Price Range</label>
+        <div class="filter-range">
+          <input type="text" class="filter-input" id="priceMin" placeholder="Min" />
+          <span class="filter-sep">—</span>
+          <input type="text" class="filter-input" id="priceMax" placeholder="Max" />
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">Bedrooms</label>
+        <select class="filter-select" id="bedsFilter">
+          <option value="any">Any</option>
+          <option value="1">1+</option>
+          <option value="2">2+</option>
+          <option value="3">3+</option>
+          <option value="4">4+</option>
+          <option value="5">5+</option>
+        </select>
+      </div>
+
+      <button class="filter-apply" onclick="applyFilters()">Apply Filters</button>
+    </div>
+
+    <div class="map-count" id="mapCount">
+      Showing <strong id="visibleCount">0</strong> properties
+    </div>
+  </div>
+
+  <!-- LISTINGS VIEW -->
+  <div id="listings-view" class="view">
+    <div class="listings-header">
+      <h1 class="listings-title">Explore Properties</h1>
+      <p class="listings-subtitle">Discover your next investment or dream home</p>
+    </div>
+    <div class="listings-toolbar" id="listingsToolbar">
+      <span class="toolbar-chip active" data-type="all" onclick="toggleListingFilter(this)">All</span>
+      <span class="toolbar-chip" data-type="rental" onclick="toggleListingFilter(this)">Rentals</span>
+      <span class="toolbar-chip" data-type="flip" onclick="toggleListingFilter(this)">Flip Deals</span>
+      <span class="toolbar-chip" data-type="residential" onclick="toggleListingFilter(this)">Residential</span>
+    </div>
+    <div class="listings-grid" id="listingsGrid"></div>
+  </div>
+
+  <!-- ABOUT VIEW -->
+  <div id="about-view" class="view">
+    <span class="about-badge">Powered by Intelligence</span>
+    <h1 class="about-heading">Real estate investing, <em>simplified.</em></h1>
+    <p class="about-text">
+      Estate IQ combines interactive mapping with smart property analytics to help you find the perfect rental property, fixer-upper, or forever home — all in one place.
+    </p>
+    <div class="about-features">
+      <div class="about-feature">
+        <span class="about-feature-icon">&#9678;</span>
+        <div class="about-feature-title">Map-First Search</div>
+        <p class="about-feature-desc">Click anywhere on the map to discover properties. Visual search meets real-time data.</p>
+      </div>
+      <div class="about-feature">
+        <span class="about-feature-icon">&#9733;</span>
+        <div class="about-feature-title">Investment Analytics</div>
+        <p class="about-feature-desc">Estimated ROI, cap rates, and flip potential calculated for every property.</p>
+      </div>
+      <div class="about-feature">
+        <span class="about-feature-icon">&#9881;</span>
+        <div class="about-feature-title">Smart Filters</div>
+        <p class="about-feature-desc">Filter by strategy — rentals, flips, or primary residences — and find exactly what fits your goals.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- PROPERTY DETAIL MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modalContent">
+    <button class="modal-close" onclick="closeModalDirect()">&times;</button>
+    <img class="modal-img" id="modalImg" src="" alt="Property" />
+    <div class="modal-body">
+      <div class="modal-price" id="modalPrice"></div>
+      <div class="modal-address" id="modalAddress"></div>
+      <div class="modal-tags" id="modalTags"></div>
+      <div class="modal-stats-grid" id="modalStats"></div>
+      <p class="modal-desc" id="modalDesc"></p>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-primary">Schedule Tour</button>
+        <button class="modal-btn modal-btn-secondary">Save Property</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ PROPERTY DATA ============
+const PROPERTIES = [
+  {
+    id: 1,
+    lat: 40.7580, lng: -73.9855,
+    price: 875000, address: "245 W 44th St, New York, NY",
+    beds: 2, baths: 2, sqft: 1100,
+    type: ["rental"],
+    img: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&h=400&fit=crop",
+    roi: "7.2%",
+    desc: "Stunning Midtown Manhattan condo in the heart of Times Square. Floor-to-ceiling windows, modern finishes, and doorman building. Excellent rental income potential with high occupancy rates year-round."
+  },
+  {
+    id: 2,
+    lat: 40.7282, lng: -73.7949,
+    price: 425000, address: "87-14 Midland Pkwy, Jamaica Estates, NY",
+    beds: 4, baths: 2, sqft: 2200,
+    type: ["flip"],
+    img: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=600&h=400&fit=crop",
+    roi: "22% ARV",
+    desc: "Spacious colonial with original hardwood floors and solid bones. Needs cosmetic updates — new kitchen, bathrooms, and paint. ARV estimated at $550K. Prime flip candidate in desirable Jamaica Estates."
+  },
+  {
+    id: 3,
+    lat: 40.6892, lng: -74.0445,
+    price: 1250000, address: "15 Liberty St, Financial District, NY",
+    beds: 3, baths: 2, sqft: 1650,
+    type: ["residential"],
+    img: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600&h=400&fit=crop",
+    roi: "—",
+    desc: "Luxury waterfront living with breathtaking views of the Statue of Liberty. Chef's kitchen with Sub-Zero appliances, marble bathrooms, private balcony. Full-service building with pool, gym, and concierge."
+  },
+  {
+    id: 4,
+    lat: 40.7484, lng: -73.9857,
+    price: 620000, address: "350 5th Ave, Midtown, NY",
+    beds: 1, baths: 1, sqft: 780,
+    type: ["rental", "residential"],
+    img: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&h=400&fit=crop",
+    roi: "5.8%",
+    desc: "Iconic Empire State Building address. Sleek studio-to-one-bed conversion with high ceilings and city views. Perfect pied-à-terre or stable rental in one of the world's most recognized addresses."
+  },
+  {
+    id: 5,
+    lat: 40.6782, lng: -73.9442,
+    price: 525000, address: "312 Crown St, Crown Heights, Brooklyn",
+    beds: 3, baths: 1, sqft: 1400,
+    type: ["flip"],
+    img: "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=600&h=400&fit=crop",
+    roi: "28% ARV",
+    desc: "Classic Brooklyn brownstone with incredible renovation potential. Original moldings and fireplace mantels. Gut renovation needed but comps in the area support $720K+ after rehab. A serious investor's dream."
+  },
+  {
+    id: 6,
+    lat: 40.7527, lng: -73.9772,
+    price: 2100000, address: "885 2nd Ave, Turtle Bay, NY",
+    beds: 4, baths: 3, sqft: 2800,
+    type: ["residential"],
+    img: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&h=400&fit=crop",
+    roi: "—",
+    desc: "Penthouse duplex with wraparound terrace and panoramic East River views. Designer interiors, smart home system, wine cellar, and private elevator entry. The pinnacle of luxury Manhattan living."
+  },
+  {
+    id: 7,
+    lat: 40.7614, lng: -73.9776,
+    price: 385000, address: "157 E 57th St, Midtown East, NY",
+    beds: 1, baths: 1, sqft: 650,
+    type: ["rental"],
+    img: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600&h=400&fit=crop",
+    roi: "6.4%",
+    desc: "Efficient one-bedroom near Central Park with consistent rental demand. Recently updated kitchen and bath. Low maintenance fees. Ideal for a first-time investor looking for steady cash flow."
+  },
+  {
+    id: 8,
+    lat: 40.6501, lng: -73.9496,
+    price: 299000, address: "1540 Flatbush Ave, Flatbush, Brooklyn",
+    beds: 2, baths: 1, sqft: 950,
+    type: ["flip", "rental"],
+    img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&h=400&fit=crop",
+    roi: "18% ARV",
+    desc: "Affordable entry point in rapidly appreciating Flatbush. Needs moderate updates — new flooring, lighting, and kitchen refresh. Can flip or BRRRR for long-term rental income. Strong neighborhood trajectory."
+  },
+  {
+    id: 9,
+    lat: 40.7831, lng: -73.9712,
+    price: 1650000, address: "320 Central Park West, Upper West Side, NY",
+    beds: 3, baths: 2, sqft: 1900,
+    type: ["residential"],
+    img: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=600&h=400&fit=crop",
+    roi: "—",
+    desc: "Pre-war elegance on Central Park West. Gracious rooms with 10-foot ceilings, herringbone floors, and original architectural details. Formal dining room, wood-burning fireplace, and Central Park views."
+  },
+  {
+    id: 10,
+    lat: 40.7128, lng: -74.0060,
+    price: 545000, address: "70 Pine St, Financial District, NY",
+    beds: 2, baths: 2, sqft: 1050,
+    type: ["rental"],
+    img: "https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=600&h=400&fit=crop",
+    roi: "6.9%",
+    desc: "Art Deco landmark conversion in FiDi with hotel-style amenities. Two-bed, two-bath with open kitchen and in-unit laundry. Strong short-term and long-term rental performance. Doorman and roof deck included."
+  },
+  {
+    id: 11,
+    lat: 40.7061, lng: -73.9969,
+    price: 349000, address: "25 Market St, Chinatown, NY",
+    beds: 1, baths: 1, sqft: 580,
+    type: ["flip"],
+    img: "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=600&h=400&fit=crop",
+    roi: "20% ARV",
+    desc: "Below-market one-bed in bustling Chinatown. Estate sale — needs full cosmetic renovation. Post-renovation comps at $430K+. Walk to subway, restaurants, and Lower Manhattan offices."
+  },
+  {
+    id: 12,
+    lat: 40.7411, lng: -73.9897,
+    price: 780000, address: "225 E 19th St, Gramercy, NY",
+    beds: 2, baths: 2, sqft: 1250,
+    type: ["residential", "rental"],
+    img: "https://images.unsplash.com/photo-1600566753086-00f18f6b7843?w=600&h=400&fit=crop",
+    roi: "5.1%",
+    desc: "Gramercy Park charm with coveted park key access. Sun-drenched two-bedroom with exposed brick, high ceilings, and a renovated chef's kitchen. Live in it or rent it — Gramercy always delivers."
+  }
+];
+
+// ============ STATE ============
+let map;
+let markers = [];
+let activeFilters = { type: 'all', priceMin: 0, priceMax: Infinity, beds: 0 };
+let listingFilter = 'all';
+let savedProperties = new Set();
+
+// ============ INTRO ANIMATION ============
+function initIntro() {
+  const canvas = document.getElementById('grid-canvas');
+  const ctx = canvas.getContext('2d');
+  let w, h, cols, rows, cellSize;
+  let particles = [];
+  let frame = 0;
+  let startTime = Date.now();
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    cellSize = Math.max(30, Math.min(60, w / 25));
+    cols = Math.ceil(w / cellSize) + 2;
+    rows = Math.ceil(h / cellSize) + 2;
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Create flowing particles
+  for (let i = 0; i < 40; i++) {
+    particles.push({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 1.5,
+      vy: (Math.random() - 0.5) * 1.5,
+      radius: Math.random() * 2 + 1,
+      alpha: Math.random() * 0.5 + 0.2
+    });
+  }
+
+  function draw() {
+    const elapsed = Date.now() - startTime;
+    ctx.clearRect(0, 0, w, h);
+
+    // Animated grid
+    const time = elapsed * 0.001;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        const x = i * cellSize;
+        const y = j * cellSize;
+        const dx = x - cx;
+        const dy = y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const maxDist = Math.sqrt(cx * cx + cy * cy);
+        const norm = dist / maxDist;
+
+        // Wave effect
+        const wave = Math.sin(dist * 0.008 - time * 2) * 0.5 + 0.5;
+        const pulse = Math.sin(time * 1.5) * 0.15 + 0.85;
+
+        const alpha = (1 - norm * 0.7) * wave * 0.25 * pulse;
+        const size = 1.5 + wave * 1.5;
+
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(201, 168, 76, ${alpha})`;
+        ctx.fill();
+
+        // Grid lines (subtle)
+        if (i < cols - 1) {
+          const nextAlpha = alpha * 0.15;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + cellSize, y);
+          ctx.strokeStyle = `rgba(201, 168, 76, ${nextAlpha})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+        if (j < rows - 1) {
+          const nextAlpha = alpha * 0.15;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x, y + cellSize);
+          ctx.strokeStyle = `rgba(201, 168, 76, ${nextAlpha})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Floating particles
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0) p.x = w;
+      if (p.x > w) p.x = 0;
+      if (p.y < 0) p.y = h;
+      if (p.y > h) p.y = 0;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(201, 168, 76, ${p.alpha * 0.6})`;
+      ctx.fill();
+    });
+
+    // Connect nearby particles
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 150) {
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(201, 168, 76, ${(1 - dist / 150) * 0.15})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Radial glow at center
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, 300);
+    gradient.addColorStop(0, 'rgba(201, 168, 76, 0.06)');
+    gradient.addColorStop(1, 'rgba(201, 168, 76, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+
+    frame = requestAnimationFrame(draw);
+  }
+
+  draw();
+
+  // Transition to app after 3.5 seconds
+  setTimeout(() => {
+    const overlay = document.getElementById('intro-overlay');
+    overlay.classList.add('fade-out');
+    document.getElementById('navbar').classList.add('visible');
+    document.getElementById('app').classList.add('visible');
+
+    setTimeout(() => {
+      cancelAnimationFrame(frame);
+      overlay.style.display = 'none';
+      initMap();
+    }, 900);
+  }, 3500);
+}
+
+// ============ MAP ============
+function initMap() {
+  map = L.map('map', {
+    center: [40.7380, -73.9800],
+    zoom: 12,
+    zoomControl: true,
+    attributionControl: false
+  });
+
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: ''
+  }).addTo(map);
+
+  renderMarkers(PROPERTIES);
+  setTimeout(() => map.invalidateSize(), 100);
+}
+
+function createMarkerIcon() {
+  return L.divIcon({
+    className: '',
+    html: '<div class="custom-marker"></div>',
+    iconSize: [36, 36],
+    iconAnchor: [18, 36],
+    popupAnchor: [0, -36]
+  });
+}
+
+function renderMarkers(properties) {
+  // Clear existing
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+
+  properties.forEach(prop => {
+    const marker = L.marker([prop.lat, prop.lng], { icon: createMarkerIcon() });
+
+    const tagsHtml = prop.type.map(t => {
+      const cls = t === 'rental' ? 'tag-rental' : t === 'flip' ? 'tag-flip' : 'tag-residential';
+      const label = t === 'rental' ? 'Rental' : t === 'flip' ? 'Flip Opportunity' : 'Primary Residence';
+      return `<span class="popup-tag ${cls}">${label}</span>`;
+    }).join('');
+
+    const popupHtml = `
+      <div class="popup-card" onclick="openModal(${prop.id})" style="cursor:pointer">
+        <img class="popup-img" src="${prop.img}" alt="Property" loading="lazy"/>
+        <div class="popup-body">
+          <div class="popup-price">$${prop.price.toLocaleString()}</div>
+          <div class="popup-address">${prop.address}</div>
+          <div class="popup-stats">
+            <div class="popup-stat"><span>${prop.beds}</span> bed</div>
+            <div class="popup-stat"><span>${prop.baths}</span> bath</div>
+            <div class="popup-stat"><span>${prop.sqft.toLocaleString()}</span> sqft</div>
+          </div>
+          <div class="popup-tags">${tagsHtml}</div>
+        </div>
+      </div>
+    `;
+
+    marker.bindPopup(popupHtml, { maxWidth: 300, minWidth: 280, closeButton: true });
+    marker.addTo(map);
+    markers.push(marker);
+  });
+
+  document.getElementById('visibleCount').textContent = properties.length;
+}
+
+// ============ FILTERS ============
+function toggleTypeChip(el) {
+  const type = el.dataset.type;
+  const chips = el.parentElement.querySelectorAll('.filter-chip');
+
+  if (type === 'all') {
+    chips.forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    activeFilters.type = 'all';
+  } else {
+    el.parentElement.querySelector('[data-type="all"]').classList.remove('active');
+    el.classList.toggle('active');
+
+    const actives = [...el.parentElement.querySelectorAll('.filter-chip.active')]
+      .map(c => c.dataset.type)
+      .filter(t => t !== 'all');
+
+    if (actives.length === 0) {
+      el.parentElement.querySelector('[data-type="all"]').classList.add('active');
+      activeFilters.type = 'all';
+    } else {
+      activeFilters.type = actives;
+    }
+  }
+}
+
+function applyFilters() {
+  const minVal = document.getElementById('priceMin').value.replace(/[^0-9]/g, '');
+  const maxVal = document.getElementById('priceMax').value.replace(/[^0-9]/g, '');
+  activeFilters.priceMin = minVal ? parseInt(minVal) : 0;
+  activeFilters.priceMax = maxVal ? parseInt(maxVal) : Infinity;
+  activeFilters.beds = parseInt(document.getElementById('bedsFilter').value) || 0;
+
+  const filtered = PROPERTIES.filter(p => {
+    // Type filter
+    if (activeFilters.type !== 'all') {
+      const types = Array.isArray(activeFilters.type) ? activeFilters.type : [activeFilters.type];
+      if (!types.some(t => p.type.includes(t))) return false;
+    }
+    // Price
+    if (p.price < activeFilters.priceMin || p.price > activeFilters.priceMax) return false;
+    // Beds
+    if (activeFilters.beds && p.beds < activeFilters.beds) return false;
+    return true;
+  });
+
+  renderMarkers(filtered);
+}
+
+function closeFilters() {
+  document.getElementById('mapFilters').classList.add('collapsed');
+  document.getElementById('filterToggle').classList.remove('hidden');
+}
+
+function openFilters() {
+  document.getElementById('mapFilters').classList.remove('collapsed');
+  document.getElementById('filterToggle').classList.add('hidden');
+}
+
+// ============ LISTINGS ============
+function renderListings(filter = 'all') {
+  const grid = document.getElementById('listingsGrid');
+  const filtered = filter === 'all'
+    ? PROPERTIES
+    : PROPERTIES.filter(p => p.type.includes(filter));
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div class="no-results">
+        <div class="no-results-icon">&#9901;</div>
+        <div class="no-results-text">No properties match your filters</div>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map((p, i) => {
+    const tagsHtml = p.type.map(t => {
+      const cls = t === 'rental' ? 'tag-rental' : t === 'flip' ? 'tag-flip' : 'tag-residential';
+      const label = t === 'rental' ? 'Rental' : t === 'flip' ? 'Flip' : 'Residence';
+      return `<span class="card-tag ${cls}">${label}</span>`;
+    }).join('');
+
+    const isSaved = savedProperties.has(p.id);
+
+    return `
+      <div class="property-card animate-in" style="animation-delay:${i * 0.07}s" onclick="openModal(${p.id})">
+        <div class="card-img-wrap">
+          <img class="card-img" src="${p.img}" alt="${p.address}" loading="lazy"/>
+          <div class="card-tags">${tagsHtml}</div>
+          <button class="card-save ${isSaved ? 'saved' : ''}" onclick="event.stopPropagation(); toggleSave(${p.id}, this)">
+            ${isSaved ? '&#9829;' : '&#9825;'}
+          </button>
+        </div>
+        <div class="card-body">
+          <div class="card-price">$${p.price.toLocaleString()}</div>
+          <div class="card-address">${p.address}</div>
+          <div class="card-stats">
+            <div class="card-stat"><span class="card-stat-val">${p.beds}</span>Beds</div>
+            <div class="card-stat"><span class="card-stat-val">${p.baths}</span>Baths</div>
+            <div class="card-stat"><span class="card-stat-val">${p.sqft.toLocaleString()}</span>Sqft</div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="card-roi"><span>Est. ROI </span>${p.roi}</div>
+          <button class="card-detail-btn" onclick="event.stopPropagation(); openModal(${p.id})">Details</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleListingFilter(el) {
+  document.querySelectorAll('#listingsToolbar .toolbar-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  listingFilter = el.dataset.type;
+  renderListings(listingFilter);
+}
+
+function toggleSave(id, btn) {
+  if (savedProperties.has(id)) {
+    savedProperties.delete(id);
+    btn.innerHTML = '&#9825;';
+    btn.classList.remove('saved');
+  } else {
+    savedProperties.add(id);
+    btn.innerHTML = '&#9829;';
+    btn.classList.add('saved');
+  }
+}
+
+// ============ MODAL ============
+function openModal(id) {
+  const p = PROPERTIES.find(x => x.id === id);
+  if (!p) return;
+
+  document.getElementById('modalImg').src = p.img;
+  document.getElementById('modalPrice').textContent = `$${p.price.toLocaleString()}`;
+  document.getElementById('modalAddress').textContent = p.address;
+
+  document.getElementById('modalTags').innerHTML = p.type.map(t => {
+    const cls = t === 'rental' ? 'tag-rental' : t === 'flip' ? 'tag-flip' : 'tag-residential';
+    const label = t === 'rental' ? 'Rental' : t === 'flip' ? 'Flip Opportunity' : 'Primary Residence';
+    return `<span class="popup-tag ${cls}">${label}</span>`;
+  }).join('');
+
+  document.getElementById('modalStats').innerHTML = `
+    <div class="modal-stat-box"><div class="modal-stat-val">${p.beds}</div><div class="modal-stat-label">Bedrooms</div></div>
+    <div class="modal-stat-box"><div class="modal-stat-val">${p.baths}</div><div class="modal-stat-label">Bathrooms</div></div>
+    <div class="modal-stat-box"><div class="modal-stat-val">${p.sqft.toLocaleString()}</div><div class="modal-stat-label">Sq Ft</div></div>
+    <div class="modal-stat-box"><div class="modal-stat-val">${p.roi}</div><div class="modal-stat-label">Est. ROI</div></div>
+  `;
+
+  document.getElementById('modalDesc').textContent = p.desc;
+  document.getElementById('modalOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) {
+    closeModalDirect();
+  }
+}
+function closeModalDirect() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ============ NAVIGATION ============
+function switchView(viewId) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(viewId).classList.add('active');
+
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.querySelector(`.nav-link[data-view="${viewId}"]`).classList.add('active');
+
+  // Close mobile nav
+  document.getElementById('navLinks').classList.remove('open');
+
+  if (viewId === 'map-view' && map) {
+    setTimeout(() => map.invalidateSize(), 100);
+  }
+  if (viewId === 'listings-view') {
+    renderListings(listingFilter);
+  }
+}
+
+function goHome() {
+  switchView('map-view');
+}
+
+function toggleMobileNav() {
+  document.getElementById('navLinks').classList.toggle('open');
+}
+
+// Close modal on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModalDirect();
+});
+
+// ============ INIT ============
+window.addEventListener('load', initIntro);
+</script>
+</body>
+</html>
