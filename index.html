@@ -786,6 +786,288 @@ canvas#grid-canvas {
   .modal-img { height: 200px; }
 }
 
+/* ========== SIGN IN PAGE ========== */
+#signin-page {
+  position: fixed; inset: 0; z-index: 8888;
+  background: var(--bg-primary);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.6s ease;
+  overflow: hidden;
+}
+#signin-page.visible { opacity: 1; pointer-events: all; }
+
+/* Animated background for sign-in */
+#signin-page::before {
+  content: '';
+  position: absolute; inset: -50%;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(201,168,76,0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(164,120,232,0.04) 0%, transparent 50%);
+  animation: signinBgDrift 12s ease-in-out infinite alternate;
+}
+@keyframes signinBgDrift {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  100% { transform: translate(30px, -20px) rotate(3deg); }
+}
+
+/* Floating orbs */
+.signin-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.12;
+  animation: orbFloat 8s ease-in-out infinite alternate;
+}
+.signin-orb:nth-child(1) {
+  width: 300px; height: 300px;
+  background: var(--gold);
+  top: 10%; left: 5%;
+  animation-duration: 10s;
+}
+.signin-orb:nth-child(2) {
+  width: 200px; height: 200px;
+  background: var(--accent-purple);
+  bottom: 15%; right: 10%;
+  animation-duration: 7s;
+  animation-delay: -3s;
+}
+.signin-orb:nth-child(3) {
+  width: 250px; height: 250px;
+  background: var(--accent-blue);
+  top: 60%; left: 60%;
+  animation-duration: 9s;
+  animation-delay: -5s;
+}
+@keyframes orbFloat {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(40px, -30px) scale(1.15); }
+}
+
+.signin-container {
+  position: relative; z-index: 2;
+  width: 100%; max-width: 420px;
+  padding: 0 1.5rem;
+}
+
+.signin-brand {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: signinReveal 0.7s 0.2s cubic-bezier(0.16,1,0.3,1) forwards;
+}
+.signin-brand-name {
+  font-family: var(--font-display);
+  font-size: 2.2rem; font-weight: 800;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.signin-brand-sub {
+  font-size: 0.78rem; color: var(--text-muted);
+  letter-spacing: 0.2em; text-transform: uppercase;
+  margin-top: 0.4rem;
+}
+
+.signin-card {
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2.5rem 2rem;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 60px rgba(201,168,76,0.05);
+  opacity: 0;
+  transform: translateY(30px);
+  animation: signinReveal 0.8s 0.4s cubic-bezier(0.16,1,0.3,1) forwards;
+}
+
+.signin-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem; font-weight: 700;
+  margin-bottom: 0.3rem;
+}
+.signin-subtitle {
+  font-size: 0.85rem; color: var(--text-secondary);
+  margin-bottom: 2rem;
+}
+
+.signin-field {
+  margin-bottom: 1.25rem;
+}
+.signin-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.signin-input {
+  width: 100%;
+  background: rgba(240,236,226,0.04);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem 1rem;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.signin-input:focus {
+  border-color: var(--gold-dim);
+  box-shadow: 0 0 0 3px rgba(201,168,76,0.08);
+}
+.signin-input::placeholder { color: var(--text-muted); }
+
+.signin-options {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1.5rem;
+  font-size: 0.8rem;
+}
+.signin-remember {
+  display: flex; align-items: center; gap: 0.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.signin-remember input[type="checkbox"] {
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+.signin-forgot {
+  color: var(--gold); background: none; border: none;
+  font-size: 0.8rem; font-family: var(--font-body);
+  cursor: pointer; transition: color 0.2s;
+}
+.signin-forgot:hover { color: var(--gold-light); }
+
+.signin-btn {
+  width: 100%;
+  padding: 0.85rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+  color: var(--bg-primary);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.signin-btn:hover {
+  box-shadow: var(--shadow-gold), 0 0 30px rgba(201,168,76,0.2);
+  transform: translateY(-2px);
+}
+.signin-btn::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.5s;
+}
+.signin-btn:hover::after { transform: translateX(100%); }
+
+.signin-divider {
+  display: flex; align-items: center; gap: 1rem;
+  margin: 1.5rem 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.signin-divider::before, .signin-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-light);
+}
+
+.signin-social {
+  display: flex; gap: 0.75rem;
+}
+.signin-social-btn {
+  flex: 1;
+  padding: 0.7rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: rgba(240,236,226,0.02);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+}
+.signin-social-btn:hover {
+  border-color: var(--gold-dim);
+  color: var(--text-primary);
+  background: rgba(240,236,226,0.04);
+}
+.signin-social-btn svg { flex-shrink: 0; }
+
+.signin-footer {
+  text-align: center;
+  margin-top: 1.75rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateY(10px);
+  animation: signinReveal 0.6s 0.7s cubic-bezier(0.16,1,0.3,1) forwards;
+}
+.signin-footer a {
+  color: var(--gold);
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.signin-footer a:hover { color: var(--gold-light); }
+
+@keyframes signinReveal {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Sign-in to map transition */
+#signin-page.exit {
+  transition: all 1.2s cubic-bezier(0.4,0,0.2,1);
+  opacity: 0;
+  transform: scale(1.1);
+  pointer-events: none;
+}
+#signin-page.exit .signin-card {
+  transition: all 0.6s cubic-bezier(0.4,0,0.2,1);
+  transform: translateY(-40px) scale(0.9);
+  opacity: 0;
+}
+#signin-page.exit .signin-brand {
+  transition: all 0.5s cubic-bezier(0.4,0,0.2,1);
+  transform: translateY(-30px) scale(1.2);
+  opacity: 0;
+}
+#signin-page.exit .signin-orb {
+  transition: all 1s ease;
+  transform: scale(3);
+  opacity: 0.3;
+}
+
+/* Map entrance after sign-in */
+@keyframes mapEntrance {
+  0% { opacity: 0; transform: scale(0.92); filter: blur(8px); }
+  100% { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+#app.map-entrance {
+  animation: mapEntrance 0.8s 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+
 /* ========== ANIMATIONS ========== */
 .animate-in {
   opacity: 0;
@@ -806,6 +1088,54 @@ canvas#grid-canvas {
     <div class="intro-logo">Estate IQ</div>
     <div class="intro-tagline">Intelligent Property Discovery</div>
     <div class="intro-pulse"></div>
+  </div>
+</div>
+
+<!-- SIGN IN PAGE -->
+<div id="signin-page">
+  <div class="signin-orb"></div>
+  <div class="signin-orb"></div>
+  <div class="signin-orb"></div>
+  <div class="signin-container">
+    <div class="signin-brand">
+      <div class="signin-brand-name">Estate IQ</div>
+      <div class="signin-brand-sub">Intelligent Property Discovery</div>
+    </div>
+    <div class="signin-card">
+      <div class="signin-title">Welcome back</div>
+      <div class="signin-subtitle">Sign in to access your property dashboard</div>
+      <form id="signinForm" onsubmit="handleSignIn(event)">
+        <div class="signin-field">
+          <label class="signin-label">Email Address</label>
+          <input type="email" class="signin-input" id="signinEmail" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <div class="signin-field">
+          <label class="signin-label">Password</label>
+          <input type="password" class="signin-input" id="signinPassword" placeholder="Enter your password" autocomplete="current-password" />
+        </div>
+        <div class="signin-options">
+          <label class="signin-remember">
+            <input type="checkbox" checked /> Remember me
+          </label>
+          <button type="button" class="signin-forgot">Forgot password?</button>
+        </div>
+        <button type="submit" class="signin-btn">Sign In</button>
+      </form>
+      <div class="signin-divider">or continue with</div>
+      <div class="signin-social">
+        <button type="button" class="signin-social-btn" onclick="handleSignIn(event)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Google
+        </button>
+        <button type="button" class="signin-social-btn" onclick="handleSignIn(event)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+          GitHub
+        </button>
+      </div>
+    </div>
+    <div class="signin-footer">
+      Don't have an account? <a onclick="handleSignIn(event)">Create one</a>
+    </div>
   </div>
 </div>
 
@@ -1210,19 +1540,37 @@ function initIntro() {
 
   draw();
 
-  // Transition to app after 3.5 seconds
+  // Transition to sign-in after 3.5 seconds
   setTimeout(() => {
     const overlay = document.getElementById('intro-overlay');
     overlay.classList.add('fade-out');
-    document.getElementById('navbar').classList.add('visible');
-    document.getElementById('app').classList.add('visible');
+    document.getElementById('signin-page').classList.add('visible');
 
     setTimeout(() => {
       cancelAnimationFrame(frame);
       overlay.style.display = 'none';
-      initMap();
     }, 900);
   }, 3500);
+}
+
+// ============ SIGN IN ============
+function handleSignIn(e) {
+  e.preventDefault();
+  const signinPage = document.getElementById('signin-page');
+  signinPage.classList.add('exit');
+
+  // Show navbar and app with map entrance animation
+  setTimeout(() => {
+    document.getElementById('navbar').classList.add('visible');
+    document.getElementById('app').classList.add('visible');
+    document.getElementById('app').classList.add('map-entrance');
+    initMap();
+  }, 400);
+
+  setTimeout(() => {
+    signinPage.style.display = 'none';
+    document.getElementById('app').classList.remove('map-entrance');
+  }, 1400);
 }
 
 // ============ MAP ============
