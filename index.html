@@ -6,1282 +6,456 @@
 <title>Estate IQ — Intelligent Property Discovery</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a0c">
+<meta name="description" content="Estate IQ — Intelligent property discovery for rentals, flips, and primary residences. Interactive map search with investment analytics.">
 <style>
-/* ========== RESET & VARIABLES ========== */
-*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-
-:root {
-  --bg-primary: #0a0a0c;
-  --bg-secondary: #111116;
-  --bg-card: #16161b;
-  --bg-card-hover: #1c1c22;
-  --bg-glass: rgba(22,22,27,0.82);
-  --gold: #c9a84c;
-  --gold-light: #e8d48b;
-  --gold-dim: #8a7230;
-  --gold-glow: rgba(201,168,76,0.25);
-  --text-primary: #f0ece2;
-  --text-secondary: #9e9a90;
-  --text-muted: #5c5952;
-  --accent-green: #4ecb71;
-  --accent-blue: #4a9eff;
-  --accent-red: #e85d5d;
-  --accent-purple: #a478e8;
-  --border: rgba(201,168,76,0.12);
-  --border-light: rgba(240,236,226,0.06);
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-lg: 20px;
-  --font-display: 'Playfair Display', Georgia, serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
-  --shadow: 0 8px 32px rgba(0,0,0,0.4);
-  --shadow-gold: 0 4px 24px rgba(201,168,76,0.15);
-}
-
-html { font-size: 16px; }
-body {
-  font-family: var(--font-body);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* ========== INTRO ANIMATION ========== */
-#intro-overlay {
-  position: fixed; inset: 0; z-index: 9999;
-  background: var(--bg-primary);
-  display: flex; align-items: center; justify-content: center;
-  flex-direction: column;
-  transition: opacity 0.8s cubic-bezier(0.4,0,0.2,1), transform 1s cubic-bezier(0.4,0,0.2,1);
-}
-#intro-overlay.fade-out {
-  opacity: 0;
-  transform: scale(1.15);
-  pointer-events: none;
-}
-
-canvas#grid-canvas {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%;
-}
-
-.intro-content {
-  position: relative; z-index: 2;
-  text-align: center;
-  opacity: 0;
-  transform: translateY(30px);
-  animation: introReveal 1s 0.5s cubic-bezier(0.16,1,0.3,1) forwards;
-}
-
-.intro-logo {
-  font-family: var(--font-display);
-  font-size: clamp(3rem, 8vw, 6rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 40%, var(--gold-dim) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 0 40px var(--gold-glow));
-  line-height: 1.1;
-}
-
-.intro-tagline {
-  font-family: var(--font-body);
-  font-size: clamp(0.85rem, 2vw, 1.15rem);
-  color: var(--text-secondary);
-  letter-spacing: 0.35em;
-  text-transform: uppercase;
-  margin-top: 1rem;
-  font-weight: 300;
-}
-
-.intro-pulse {
-  width: 60px; height: 2px;
-  background: var(--gold);
-  margin: 1.5rem auto 0;
-  animation: pulse 1.5s ease-in-out infinite;
-  border-radius: 1px;
-}
-
-@keyframes introReveal {
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes pulse {
-  0%, 100% { opacity: 0.3; transform: scaleX(0.6); }
-  50% { opacity: 1; transform: scaleX(1); }
-}
-
-/* ========== NAVBAR ========== */
-#navbar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-  height: 64px;
-  background: rgba(10,10,12,0.85);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 2rem;
-  transform: translateY(-100%);
-  transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
-}
-#navbar.visible { transform: translateY(0); }
-
-.nav-brand {
-  font-family: var(--font-display);
-  font-size: 1.35rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--gold-light), var(--gold));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-  cursor: pointer;
-  user-select: none;
-}
-
-.nav-links {
-  display: flex; align-items: center; gap: 0.25rem;
-}
-.nav-link {
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.25s ease;
-  border: none; background: none;
-  letter-spacing: 0.02em;
-  position: relative;
-}
-.nav-link:hover { color: var(--text-primary); background: var(--border-light); }
-.nav-link.active {
-  color: var(--gold);
-  background: rgba(201,168,76,0.08);
-}
-.nav-link.active::after {
-  content: '';
-  position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
-  width: 16px; height: 2px;
-  background: var(--gold);
-  border-radius: 1px;
-}
-
-.nav-hamburger {
-  display: none;
-  flex-direction: column; gap: 5px;
-  cursor: pointer; background: none; border: none; padding: 4px;
-}
-.nav-hamburger span {
-  width: 22px; height: 2px; background: var(--text-secondary);
-  transition: all 0.3s ease; border-radius: 1px;
-}
-
-/* ========== MAIN LAYOUT ========== */
-#app {
-  opacity: 0;
-  transition: opacity 0.6s ease;
-}
-#app.visible { opacity: 1; }
-
-.view { display: none; min-height: 100vh; padding-top: 64px; }
-.view.active { display: block; }
-
-/* ========== MAP VIEW ========== */
-#map-view { position: relative; }
-#map {
-  width: 100%;
-  height: calc(100vh - 64px);
-}
-.leaflet-tile-pane { filter: brightness(0.7) saturate(0.3) contrast(1.1); }
-.leaflet-control-zoom a {
-  background: var(--bg-card) !important;
-  color: var(--gold) !important;
-  border-color: var(--border) !important;
-}
-.leaflet-control-attribution { display: none !important; }
-
-/* Property popup */
-.leaflet-popup-content-wrapper {
-  background: var(--bg-card) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  box-shadow: var(--shadow) !important;
-  color: var(--text-primary) !important;
-  padding: 0 !important;
-  overflow: hidden;
-}
-.leaflet-popup-tip { background: var(--bg-card) !important; border: 1px solid var(--border) !important; }
-.leaflet-popup-close-button { color: var(--text-muted) !important; font-size: 20px !important; }
-
-.popup-card { width: 280px; }
-.popup-img {
-  width: 100%; height: 140px;
-  object-fit: cover;
-  display: block;
-}
-.popup-body { padding: 1rem; }
-.popup-price {
-  font-family: var(--font-display);
-  font-size: 1.3rem; font-weight: 700;
-  color: var(--gold);
-}
-.popup-address { font-size: 0.8rem; color: var(--text-secondary); margin: 0.3rem 0 0.6rem; }
-.popup-stats {
-  display: flex; gap: 1rem; font-size: 0.75rem; color: var(--text-muted);
-}
-.popup-stat span { color: var(--text-primary); font-weight: 600; }
-.popup-tags { display: flex; gap: 0.4rem; margin-top: 0.7rem; flex-wrap: wrap; }
-.popup-tag {
-  font-size: 0.65rem; padding: 0.2rem 0.55rem;
-  border-radius: 20px; font-weight: 600;
-  letter-spacing: 0.03em; text-transform: uppercase;
-}
-.tag-rental { background: rgba(78,203,113,0.12); color: var(--accent-green); }
-.tag-flip { background: rgba(232,93,93,0.12); color: var(--accent-red); }
-.tag-residential { background: rgba(74,158,255,0.12); color: var(--accent-blue); }
-
-/* Custom marker */
-.custom-marker {
-  width: 36px; height: 36px;
-  background: var(--gold);
-  border: 3px solid var(--bg-primary);
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
-  box-shadow: 0 3px 12px rgba(0,0,0,0.5), 0 0 20px var(--gold-glow);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  position: relative;
-}
-.custom-marker::after {
-  content: '';
-  position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%,-50%);
-  width: 10px; height: 10px;
-  background: var(--bg-primary);
-  border-radius: 50%;
-}
-.custom-marker:hover {
-  transform: rotate(-45deg) scale(1.15);
-  box-shadow: 0 5px 20px rgba(0,0,0,0.6), 0 0 30px var(--gold-glow);
-}
-
-/* Map sidebar filter panel */
-.map-filters {
-  position: absolute; top: 80px; left: 1rem; z-index: 800;
-  background: var(--bg-glass);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.25rem;
-  width: 280px;
-  box-shadow: var(--shadow);
-  transform: translateX(0);
-  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
-}
-.map-filters.collapsed { transform: translateX(calc(-100% - 1rem)); }
-
-.filter-toggle {
-  position: absolute; top: 80px; left: 1rem; z-index: 799;
-  width: 44px; height: 44px;
-  background: var(--bg-glass);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  color: var(--gold);
-  font-size: 1.1rem;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow);
-}
-.filter-toggle:hover { background: var(--bg-card-hover); }
-.filter-toggle.hidden { opacity: 0; pointer-events: none; }
-
-.filter-header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 1rem;
-}
-.filter-title {
-  font-family: var(--font-display);
-  font-size: 1.05rem; font-weight: 700;
-  color: var(--gold);
-}
-.filter-close {
-  background: none; border: none;
-  color: var(--text-muted); cursor: pointer;
-  font-size: 1.2rem; transition: color 0.2s;
-}
-.filter-close:hover { color: var(--text-primary); }
-
-.filter-group { margin-bottom: 1rem; }
-.filter-label {
-  font-size: 0.7rem; text-transform: uppercase;
-  letter-spacing: 0.1em; color: var(--text-muted);
-  font-weight: 600; margin-bottom: 0.5rem; display: block;
-}
-
-.filter-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.filter-chip {
-  padding: 0.35rem 0.7rem;
-  border-radius: 20px;
-  font-size: 0.75rem; font-weight: 500;
-  background: rgba(240,236,226,0.04);
-  border: 1px solid var(--border-light);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.filter-chip:hover { border-color: var(--gold-dim); color: var(--text-primary); }
-.filter-chip.active {
-  background: rgba(201,168,76,0.12);
-  border-color: var(--gold);
-  color: var(--gold);
-}
-
-.filter-range {
-  display: flex; gap: 0.5rem; align-items: center;
-}
-.filter-input {
-  flex: 1;
-  background: rgba(240,236,226,0.04);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 0.45rem 0.6rem;
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  outline: none;
-  transition: border-color 0.2s;
-}
-.filter-input:focus { border-color: var(--gold-dim); }
-.filter-input::placeholder { color: var(--text-muted); }
-.filter-sep { color: var(--text-muted); font-size: 0.8rem; }
-
-.filter-select {
-  width: 100%;
-  background: rgba(240,236,226,0.04);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 0.45rem 0.6rem;
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  outline: none;
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239e9a90' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.6rem center;
-}
-.filter-select option { background: var(--bg-card); color: var(--text-primary); }
-
-.filter-apply {
-  width: 100%;
-  padding: 0.6rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
-  color: var(--bg-primary);
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  font-weight: 700;
-  cursor: pointer;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  transition: all 0.25s ease;
-  margin-top: 0.5rem;
-}
-.filter-apply:hover { box-shadow: var(--shadow-gold); transform: translateY(-1px); }
-
-/* Zip code search bar */
-.zip-search {
-  position: absolute;
-  top: 80px; left: 50%;
-  transform: translateX(-50%);
-  z-index: 800;
-  display: flex; align-items: center;
-  background: var(--bg-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border);
-  border-radius: 40px;
-  padding: 0.35rem 0.5rem 0.35rem 1.25rem;
-  box-shadow: var(--shadow);
-  width: 380px;
-  max-width: calc(100% - 2rem);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-.zip-search:focus-within {
-  border-color: var(--gold-dim);
-  box-shadow: var(--shadow), 0 0 0 3px rgba(201,168,76,0.08);
-}
-.zip-search-icon {
-  color: var(--text-muted);
-  flex-shrink: 0;
-  margin-right: 0.6rem;
-  transition: color 0.3s;
-}
-.zip-search:focus-within .zip-search-icon { color: var(--gold); }
-.zip-search-input {
-  flex: 1;
-  background: none; border: none; outline: none;
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 0.88rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-}
-.zip-search-input::placeholder { color: var(--text-muted); }
-.zip-search-btn {
-  flex-shrink: 0;
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 30px;
-  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
-  color: var(--bg-primary);
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  transition: all 0.25s ease;
-}
-.zip-search-btn:hover {
-  box-shadow: var(--shadow-gold);
-  transform: scale(1.04);
-}
-.zip-search-clear {
-  flex-shrink: 0;
-  width: 28px; height: 28px;
-  border: none; border-radius: 50%;
-  background: rgba(240,236,226,0.06);
-  color: var(--text-muted);
-  font-size: 1rem;
-  cursor: pointer;
-  display: none;
-  align-items: center; justify-content: center;
-  margin-right: 0.4rem;
-  transition: all 0.2s;
-}
-.zip-search-clear.visible { display: flex; }
-.zip-search-clear:hover { background: rgba(240,236,226,0.1); color: var(--text-primary); }
-
-/* Property count badge */
-.map-count {
-  position: absolute; bottom: 2rem; left: 50%;
-  transform: translateX(-50%); z-index: 800;
-  background: var(--bg-glass);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--border);
-  border-radius: 30px;
-  padding: 0.6rem 1.5rem;
-  font-size: 0.8rem; color: var(--text-secondary);
-  box-shadow: var(--shadow);
-}
-.map-count strong { color: var(--gold); font-weight: 700; }
-
-/* ========== LISTINGS VIEW ========== */
-#listings-view { background: var(--bg-primary); }
-
-.listings-header {
-  padding: 3rem 2rem 1.5rem;
-  max-width: 1400px; margin: 0 auto;
-}
-.listings-title {
-  font-family: var(--font-display);
-  font-size: clamp(1.8rem, 4vw, 2.8rem);
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--gold-light), var(--gold));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.listings-subtitle {
-  color: var(--text-secondary);
-  font-size: 0.95rem; margin-top: 0.5rem;
-  font-weight: 300;
-}
-
-.listings-toolbar {
-  display: flex; gap: 0.5rem; flex-wrap: wrap;
-  padding: 0 2rem 1.5rem;
-  max-width: 1400px; margin: 0 auto;
-  align-items: center;
-}
-.toolbar-chip {
-  padding: 0.45rem 1rem;
-  border-radius: 30px;
-  font-size: 0.8rem; font-weight: 500;
-  background: rgba(240,236,226,0.04);
-  border: 1px solid var(--border-light);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.toolbar-chip:hover { border-color: var(--gold-dim); color: var(--text-primary); }
-.toolbar-chip.active {
-  background: rgba(201,168,76,0.12);
-  border-color: var(--gold);
-  color: var(--gold);
-}
-
-.listings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 1.5rem;
-  padding: 0 2rem 4rem;
-  max-width: 1400px; margin: 0 auto;
-}
-
-.property-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  overflow: hidden;
-  cursor: pointer;
-  transition: all 0.35s cubic-bezier(0.16,1,0.3,1);
-  position: relative;
-}
-.property-card:hover {
-  border-color: var(--border);
-  transform: translateY(-4px);
-  box-shadow: var(--shadow), 0 0 40px rgba(201,168,76,0.06);
-}
-
-.card-img-wrap {
-  position: relative;
-  height: 200px;
-  overflow: hidden;
-}
-.card-img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
-}
-.property-card:hover .card-img { transform: scale(1.06); }
-
-.card-tags {
-  position: absolute; top: 0.75rem; left: 0.75rem;
-  display: flex; gap: 0.35rem;
-}
-.card-tag {
-  font-size: 0.65rem; padding: 0.25rem 0.6rem;
-  border-radius: 20px; font-weight: 700;
-  letter-spacing: 0.04em; text-transform: uppercase;
-  backdrop-filter: blur(8px);
-}
-.card-tag.tag-rental { background: rgba(78,203,113,0.85); color: #0a0a0c; }
-.card-tag.tag-flip { background: rgba(232,93,93,0.85); color: #fff; }
-.card-tag.tag-residential { background: rgba(74,158,255,0.85); color: #fff; }
-
-.card-save {
-  position: absolute; top: 0.75rem; right: 0.75rem;
-  width: 34px; height: 34px;
-  background: rgba(10,10,12,0.6);
-  backdrop-filter: blur(8px);
-  border: none;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 1rem;
-  transition: all 0.2s ease;
-}
-.card-save:hover { color: var(--accent-red); background: rgba(10,10,12,0.8); }
-.card-save.saved { color: var(--accent-red); }
-
-.card-body { padding: 1.25rem; }
-.card-price {
-  font-family: var(--font-display);
-  font-size: 1.5rem; font-weight: 700;
-  color: var(--gold);
-}
-.card-address {
-  font-size: 0.85rem; color: var(--text-secondary);
-  margin: 0.25rem 0 0.75rem;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-.card-stats {
-  display: flex; gap: 1.25rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border-light);
-}
-.card-stat {
-  font-size: 0.78rem; color: var(--text-muted);
-}
-.card-stat-val {
-  font-weight: 700; color: var(--text-primary);
-  margin-right: 0.2rem;
-}
-
-.card-footer {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 0.75rem 1.25rem;
-  border-top: 1px solid var(--border-light);
-  background: rgba(240,236,226,0.015);
-}
-.card-roi {
-  font-size: 0.75rem; color: var(--accent-green);
-  font-weight: 600;
-}
-.card-roi span { color: var(--text-muted); font-weight: 400; }
-.card-detail-btn {
-  font-size: 0.75rem;
-  color: var(--gold);
-  background: none;
-  border: 1px solid var(--gold-dim);
-  border-radius: 20px;
-  padding: 0.3rem 0.8rem;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-.card-detail-btn:hover {
-  background: var(--gold);
-  color: var(--bg-primary);
-}
-
-/* ========== ABOUT VIEW ========== */
-#about-view {
-  background: var(--bg-primary);
-  display: flex; align-items: center; justify-content: center;
-  flex-direction: column;
-  min-height: 100vh;
-  padding: 6rem 2rem 4rem;
-  text-align: center;
-}
-.about-badge {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: var(--gold);
-  font-weight: 600;
-  margin-bottom: 1.5rem;
-  padding: 0.4rem 1.2rem;
-  border: 1px solid var(--gold-dim);
-  border-radius: 30px;
-  display: inline-block;
-}
-.about-heading {
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 5vw, 3.5rem);
-  font-weight: 700;
-  max-width: 700px;
-  line-height: 1.2;
-  margin-bottom: 1.5rem;
-}
-.about-heading em {
-  font-style: normal;
-  background: linear-gradient(135deg, var(--gold-light), var(--gold));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.about-text {
-  max-width: 560px;
-  color: var(--text-secondary);
-  font-size: 1.05rem;
-  line-height: 1.7;
-  margin-bottom: 2.5rem;
-}
-.about-features {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.5rem;
-  max-width: 800px;
-  width: 100%;
-  margin-top: 1rem;
-}
-.about-feature {
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  padding: 1.75rem;
-  text-align: left;
-  transition: border-color 0.3s;
-}
-.about-feature:hover { border-color: var(--border); }
-.about-feature-icon {
-  font-size: 1.6rem;
-  margin-bottom: 0.75rem;
-  display: block;
-}
-.about-feature-title {
-  font-family: var(--font-display);
-  font-size: 1.05rem; font-weight: 700;
-  margin-bottom: 0.4rem;
-}
-.about-feature-desc {
-  font-size: 0.83rem;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-/* ========== PROPERTY DETAIL MODAL ========== */
-.modal-overlay {
-  position: fixed; inset: 0; z-index: 2000;
-  background: rgba(0,0,0,0.7);
-  backdrop-filter: blur(6px);
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; pointer-events: none;
-  transition: opacity 0.35s ease;
-  padding: 1rem;
-}
-.modal-overlay.open { opacity: 1; pointer-events: all; }
-
-.modal {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  max-width: 640px; width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
-  transform: translateY(20px) scale(0.97);
-  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
-}
-.modal-overlay.open .modal { transform: translateY(0) scale(1); }
-
-.modal-img { width: 100%; height: 260px; object-fit: cover; display: block; }
-
-.modal-body { padding: 2rem; }
-.modal-price {
-  font-family: var(--font-display);
-  font-size: 2rem; font-weight: 700;
-  color: var(--gold);
-}
-.modal-address { color: var(--text-secondary); margin: 0.3rem 0 1rem; }
-.modal-tags { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; }
-
-.modal-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.modal-stat-box {
-  background: rgba(240,236,226,0.03);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 0.8rem;
-  text-align: center;
-}
-.modal-stat-val {
-  font-family: var(--font-display);
-  font-size: 1.2rem; font-weight: 700;
-  color: var(--text-primary);
-}
-.modal-stat-label {
-  font-size: 0.68rem; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 0.08em;
-  margin-top: 0.2rem;
-}
-
-.modal-desc {
-  color: var(--text-secondary);
-  line-height: 1.6; font-size: 0.9rem;
-  margin-bottom: 1.5rem;
-}
-
-.modal-actions { display: flex; gap: 0.75rem; }
-.modal-btn {
-  flex: 1;
-  padding: 0.75rem;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-body);
-  font-size: 0.85rem; font-weight: 700;
-  cursor: pointer;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  transition: all 0.25s ease;
-  text-align: center;
-}
-.modal-btn-primary {
-  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
-  color: var(--bg-primary);
-  border: none;
-}
-.modal-btn-primary:hover { box-shadow: var(--shadow-gold); transform: translateY(-2px); }
-.modal-btn-secondary {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-}
-.modal-btn-secondary:hover { border-color: var(--gold-dim); color: var(--text-primary); }
-
-.modal-close {
-  position: absolute; top: 1rem; right: 1rem;
-  width: 36px; height: 36px;
-  background: rgba(10,10,12,0.7);
-  backdrop-filter: blur(8px);
-  border: none; border-radius: 50%;
-  color: #fff; font-size: 1.2rem;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.2s;
-  z-index: 2;
-}
-.modal-close:hover { background: rgba(10,10,12,0.9); }
-
-/* Scrollbar */
-.modal::-webkit-scrollbar { width: 6px; }
-.modal::-webkit-scrollbar-track { background: transparent; }
-.modal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-/* ========== NO RESULTS ========== */
-.no-results {
-  grid-column: 1/-1;
-  text-align: center;
-  padding: 4rem 2rem;
-  color: var(--text-muted);
-}
-.no-results-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; }
-.no-results-text { font-size: 1.1rem; }
-
-/* ========== RESPONSIVE ========== */
-@media (max-width: 768px) {
-  .nav-links {
-    display: none;
-    position: fixed; top: 64px; left: 0; right: 0;
-    background: rgba(10,10,12,0.95);
-    backdrop-filter: blur(20px);
-    flex-direction: column;
-    padding: 1rem;
-    border-bottom: 1px solid var(--border);
-  }
-  .nav-links.open { display: flex; }
-  .nav-hamburger { display: flex; }
-
-  .map-filters { width: calc(100% - 2rem); left: 1rem; }
-  .listings-grid { grid-template-columns: 1fr; }
-  .modal-stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .modal-img { height: 200px; }
-}
-
-/* ========== SIGN IN PAGE ========== */
-#signin-page {
-  position: fixed; inset: 0; z-index: 8888;
-  background: var(--bg-primary);
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; pointer-events: none;
-  transition: opacity 0.6s ease;
-  overflow: hidden;
-}
-#signin-page.visible { opacity: 1; pointer-events: all; }
-
-/* Animated background for sign-in */
-#signin-page::before {
-  content: '';
-  position: absolute; inset: -50%;
-  background:
-    radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(201,168,76,0.05) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 80%, rgba(164,120,232,0.04) 0%, transparent 50%);
-  animation: signinBgDrift 12s ease-in-out infinite alternate;
-}
-@keyframes signinBgDrift {
-  0% { transform: translate(0, 0) rotate(0deg); }
-  100% { transform: translate(30px, -20px) rotate(3deg); }
-}
-
-/* Floating orbs */
-.signin-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.12;
-  animation: orbFloat 8s ease-in-out infinite alternate;
-}
-.signin-orb:nth-child(1) {
-  width: 300px; height: 300px;
-  background: var(--gold);
-  top: 10%; left: 5%;
-  animation-duration: 10s;
-}
-.signin-orb:nth-child(2) {
-  width: 200px; height: 200px;
-  background: var(--accent-purple);
-  bottom: 15%; right: 10%;
-  animation-duration: 7s;
-  animation-delay: -3s;
-}
-.signin-orb:nth-child(3) {
-  width: 250px; height: 250px;
-  background: var(--accent-blue);
-  top: 60%; left: 60%;
-  animation-duration: 9s;
-  animation-delay: -5s;
-}
-@keyframes orbFloat {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(40px, -30px) scale(1.15); }
-}
-
-.signin-container {
-  position: relative; z-index: 2;
-  width: 100%; max-width: 420px;
-  padding: 0 1.5rem;
-}
-
-.signin-brand {
-  text-align: center;
-  margin-bottom: 2.5rem;
-  opacity: 0;
-  transform: translateY(20px);
-  animation: signinReveal 0.7s 0.2s cubic-bezier(0.16,1,0.3,1) forwards;
-}
-.signin-brand-name {
-  font-family: var(--font-display);
-  font-size: 2.2rem; font-weight: 800;
-  background: linear-gradient(135deg, var(--gold-light), var(--gold));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.signin-brand-sub {
-  font-size: 0.78rem; color: var(--text-muted);
-  letter-spacing: 0.2em; text-transform: uppercase;
-  margin-top: 0.4rem;
-}
-
-.signin-card {
-  background: var(--bg-glass);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 2.5rem 2rem;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 60px rgba(201,168,76,0.05);
-  opacity: 0;
-  transform: translateY(30px);
-  animation: signinReveal 0.8s 0.4s cubic-bezier(0.16,1,0.3,1) forwards;
-}
-
-.signin-title {
-  font-family: var(--font-display);
-  font-size: 1.5rem; font-weight: 700;
-  margin-bottom: 0.3rem;
-}
-.signin-subtitle {
-  font-size: 0.85rem; color: var(--text-secondary);
-  margin-bottom: 2rem;
-}
-
-.signin-field {
-  margin-bottom: 1.25rem;
-}
-.signin-label {
-  display: block;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-muted);
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-.signin-input {
-  width: 100%;
-  background: rgba(240,236,226,0.04);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 0.8rem 1rem;
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  outline: none;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-.signin-input:focus {
-  border-color: var(--gold-dim);
-  box-shadow: 0 0 0 3px rgba(201,168,76,0.08);
-}
-.signin-input::placeholder { color: var(--text-muted); }
-
-.signin-options {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 1.5rem;
-  font-size: 0.8rem;
-}
-.signin-remember {
-  display: flex; align-items: center; gap: 0.5rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.signin-remember input[type="checkbox"] {
-  accent-color: var(--gold);
-  cursor: pointer;
-}
-.signin-forgot {
-  color: var(--gold); background: none; border: none;
-  font-size: 0.8rem; font-family: var(--font-body);
-  cursor: pointer; transition: color 0.2s;
-}
-.signin-forgot:hover { color: var(--gold-light); }
-
-.signin-btn {
-  width: 100%;
-  padding: 0.85rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
-  color: var(--bg-primary);
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 700;
-  cursor: pointer;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-.signin-btn:hover {
-  box-shadow: var(--shadow-gold), 0 0 30px rgba(201,168,76,0.2);
-  transform: translateY(-2px);
-}
-.signin-btn::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-  transform: translateX(-100%);
-  transition: transform 0.5s;
-}
-.signin-btn:hover::after { transform: translateX(100%); }
-
-.signin-divider {
-  display: flex; align-items: center; gap: 1rem;
-  margin: 1.5rem 0;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-.signin-divider::before, .signin-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-light);
-}
-
-.signin-social {
-  display: flex; gap: 0.75rem;
-}
-.signin-social-btn {
-  flex: 1;
-  padding: 0.7rem;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  background: rgba(240,236,226,0.02);
-  color: var(--text-secondary);
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-}
-.signin-social-btn:hover {
-  border-color: var(--gold-dim);
-  color: var(--text-primary);
-  background: rgba(240,236,226,0.04);
-}
-.signin-social-btn svg { flex-shrink: 0; }
-
-.signin-footer {
-  text-align: center;
-  margin-top: 1.75rem;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  opacity: 0;
-  transform: translateY(10px);
-  animation: signinReveal 0.6s 0.7s cubic-bezier(0.16,1,0.3,1) forwards;
-}
-.signin-footer a {
-  color: var(--gold);
-  text-decoration: none;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-.signin-footer a:hover { color: var(--gold-light); }
-
-@keyframes signinReveal {
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Sign-in to map transition */
-#signin-page.exit {
-  transition: all 1.2s cubic-bezier(0.4,0,0.2,1);
-  opacity: 0;
-  transform: scale(1.1);
-  pointer-events: none;
-}
-#signin-page.exit .signin-card {
-  transition: all 0.6s cubic-bezier(0.4,0,0.2,1);
-  transform: translateY(-40px) scale(0.9);
-  opacity: 0;
-}
-#signin-page.exit .signin-brand {
-  transition: all 0.5s cubic-bezier(0.4,0,0.2,1);
-  transform: translateY(-30px) scale(1.2);
-  opacity: 0;
-}
-#signin-page.exit .signin-orb {
-  transition: all 1s ease;
-  transform: scale(3);
-  opacity: 0.3;
-}
-
-/* Map entrance after sign-in */
-@keyframes mapEntrance {
-  0% { opacity: 0; transform: scale(0.92); filter: blur(8px); }
-  100% { opacity: 1; transform: scale(1); filter: blur(0); }
-}
-#app.map-entrance {
-  animation: mapEntrance 0.8s 0.4s cubic-bezier(0.16,1,0.3,1) both;
-}
-
-/* ========== ANIMATIONS ========== */
-.animate-in {
-  opacity: 0;
-  transform: translateY(20px);
-  animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) forwards;
-}
-@keyframes fadeUp {
-  to { opacity: 1; transform: translateY(0); }
-}
+/* ===== RESET & VARIABLES ===== */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0c;--bg2:#111116;--bg3:#16161b;--bg4:#1c1c22;
+  --glass:rgba(22,22,27,0.82);
+  --gold:#c9a84c;--gold-l:#e8d48b;--gold-d:#8a7230;--gold-g:rgba(201,168,76,0.25);
+  --txt:#f0ece2;--txt2:#9e9a90;--txt3:#5c5952;
+  --green:#4ecb71;--blue:#4a9eff;--red:#e85d5d;--purple:#a478e8;--orange:#f59e0b;
+  --bdr:rgba(201,168,76,0.12);--bdr2:rgba(240,236,226,0.06);
+  --r:12px;--rs:8px;--rl:20px;
+  --ff:'Playfair Display',Georgia,serif;--fb:'DM Sans',system-ui,sans-serif;
+  --sh:0 8px 32px rgba(0,0,0,0.4);--sh-g:0 4px 24px rgba(201,168,76,0.15);
+}
+html{font-size:16px}
+body{font-family:var(--fb);background:var(--bg);color:var(--txt);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+a{color:var(--gold);text-decoration:none}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+
+/* ===== INTRO ===== */
+#intro{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity .8s ease,transform 1s ease}
+#intro.out{opacity:0;transform:scale(1.15);pointer-events:none}
+#intro canvas{position:absolute;inset:0;width:100%;height:100%}
+.intro-c{position:relative;z-index:2;text-align:center;opacity:0;transform:translateY(30px);animation:revUp 1s .5s cubic-bezier(.16,1,.3,1) forwards}
+.intro-logo{font-family:var(--ff);font-size:clamp(3rem,8vw,6rem);font-weight:800;letter-spacing:-.02em;background:linear-gradient(135deg,var(--gold-l),var(--gold),var(--gold-d));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 40px var(--gold-g));line-height:1.1}
+.intro-sub{font-size:clamp(.85rem,2vw,1.15rem);color:var(--txt2);letter-spacing:.35em;text-transform:uppercase;margin-top:1rem;font-weight:300}
+.intro-bar{width:60px;height:2px;background:var(--gold);margin:1.5rem auto 0;animation:pulse 1.5s ease-in-out infinite;border-radius:1px}
+@keyframes revUp{to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:.3;transform:scaleX(.6)}50%{opacity:1;transform:scaleX(1)}}
+
+/* ===== SIGN IN ===== */
+#signin{position:fixed;inset:0;z-index:8888;background:var(--bg);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .6s ease;overflow:hidden}
+#signin.vis{opacity:1;pointer-events:all}
+#signin::before{content:'';position:absolute;inset:-50%;background:radial-gradient(ellipse at 20% 50%,rgba(201,168,76,.08) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(201,168,76,.05) 0%,transparent 50%),radial-gradient(ellipse at 50% 80%,rgba(164,120,232,.04) 0%,transparent 50%);animation:bgDrift 12s ease-in-out infinite alternate}
+@keyframes bgDrift{to{transform:translate(30px,-20px) rotate(3deg)}}
+.s-orb{position:absolute;border-radius:50%;filter:blur(60px);opacity:.12;animation:orbF 8s ease-in-out infinite alternate}
+.s-orb:nth-child(1){width:300px;height:300px;background:var(--gold);top:10%;left:5%;animation-duration:10s}
+.s-orb:nth-child(2){width:200px;height:200px;background:var(--purple);bottom:15%;right:10%;animation-duration:7s;animation-delay:-3s}
+.s-orb:nth-child(3){width:250px;height:250px;background:var(--blue);top:60%;left:60%;animation-duration:9s;animation-delay:-5s}
+@keyframes orbF{to{transform:translate(40px,-30px) scale(1.15)}}
+.si-wrap{position:relative;z-index:2;width:100%;max-width:420px;padding:0 1.5rem}
+.si-brand{text-align:center;margin-bottom:2.5rem;opacity:0;transform:translateY(20px);animation:revUp .7s .2s cubic-bezier(.16,1,.3,1) forwards}
+.si-bname{font-family:var(--ff);font-size:2.2rem;font-weight:800;background:linear-gradient(135deg,var(--gold-l),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.si-bsub{font-size:.78rem;color:var(--txt3);letter-spacing:.2em;text-transform:uppercase;margin-top:.4rem}
+.si-card{background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--bdr);border-radius:var(--rl);padding:2.5rem 2rem;box-shadow:0 24px 80px rgba(0,0,0,.5),0 0 60px rgba(201,168,76,.05);opacity:0;transform:translateY(30px);animation:revUp .8s .4s cubic-bezier(.16,1,.3,1) forwards}
+.si-title{font-family:var(--ff);font-size:1.5rem;font-weight:700;margin-bottom:.3rem}
+.si-sub{font-size:.85rem;color:var(--txt2);margin-bottom:2rem}
+.si-field{margin-bottom:1.25rem}
+.si-label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--txt3);font-weight:600;margin-bottom:.5rem}
+.si-input{width:100%;background:rgba(240,236,226,.04);border:1px solid var(--bdr2);border-radius:var(--rs);padding:.8rem 1rem;color:var(--txt);font-family:var(--fb);font-size:.9rem;outline:none;transition:border-color .3s,box-shadow .3s}
+.si-input:focus{border-color:var(--gold-d);box-shadow:0 0 0 3px rgba(201,168,76,.08)}
+.si-input::placeholder{color:var(--txt3)}
+.si-opts{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;font-size:.8rem}
+.si-rem{display:flex;align-items:center;gap:.5rem;color:var(--txt2);cursor:pointer}
+.si-rem input{accent-color:var(--gold);cursor:pointer}
+.si-forgot{color:var(--gold);background:none;border:none;font-size:.8rem;font-family:var(--fb);cursor:pointer}
+.si-btn{width:100%;padding:.85rem;border:none;border-radius:var(--rs);background:linear-gradient(135deg,var(--gold),var(--gold-d));color:var(--bg);font-family:var(--fb);font-size:.9rem;font-weight:700;cursor:pointer;letter-spacing:.06em;text-transform:uppercase;transition:all .3s;position:relative;overflow:hidden}
+.si-btn:hover{box-shadow:var(--sh-g),0 0 30px rgba(201,168,76,.2);transform:translateY(-2px)}
+.si-btn::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);transform:translateX(-100%);transition:transform .5s}
+.si-btn:hover::after{transform:translateX(100%)}
+.si-div{display:flex;align-items:center;gap:1rem;margin:1.5rem 0;color:var(--txt3);font-size:.75rem;text-transform:uppercase;letter-spacing:.1em}
+.si-div::before,.si-div::after{content:'';flex:1;height:1px;background:var(--bdr2)}
+.si-social{display:flex;gap:.75rem}
+.si-social-btn{flex:1;padding:.7rem;border:1px solid var(--bdr2);border-radius:var(--rs);background:rgba(240,236,226,.02);color:var(--txt2);font-family:var(--fb);font-size:.8rem;font-weight:500;cursor:pointer;transition:all .25s;display:flex;align-items:center;justify-content:center;gap:.5rem}
+.si-social-btn:hover{border-color:var(--gold-d);color:var(--txt);background:rgba(240,236,226,.04)}
+.si-foot{text-align:center;margin-top:1.75rem;font-size:.82rem;color:var(--txt3);opacity:0;transform:translateY(10px);animation:revUp .6s .7s cubic-bezier(.16,1,.3,1) forwards}
+.si-foot a{color:var(--gold);font-weight:600;cursor:pointer}
+#signin.exit{transition:all 1.2s ease;opacity:0;transform:scale(1.1);pointer-events:none}
+#signin.exit .si-card{transition:all .6s ease;transform:translateY(-40px) scale(.9);opacity:0}
+#signin.exit .si-brand{transition:all .5s ease;transform:translateY(-30px) scale(1.2);opacity:0}
+
+/* ===== NAVBAR ===== */
+#nav{position:fixed;top:0;left:0;right:0;z-index:1000;height:64px;background:rgba(10,10,12,.85);backdrop-filter:blur(20px) saturate(1.4);border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;transform:translateY(-100%);transition:transform .5s cubic-bezier(.16,1,.3,1)}
+#nav.vis{transform:translateY(0)}
+.nav-b{font-family:var(--ff);font-size:1.25rem;font-weight:700;background:linear-gradient(135deg,var(--gold-l),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;cursor:pointer;user-select:none;white-space:nowrap}
+.nav-links{display:flex;align-items:center;gap:.15rem}
+.nav-l{padding:.45rem .75rem;border-radius:var(--rs);font-size:.8rem;font-weight:500;color:var(--txt2);cursor:pointer;transition:all .25s;border:none;background:none;letter-spacing:.02em;position:relative;white-space:nowrap}
+.nav-l:hover{color:var(--txt);background:var(--bdr2)}
+.nav-l.act{color:var(--gold);background:rgba(201,168,76,.08)}
+.nav-l.act::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:14px;height:2px;background:var(--gold);border-radius:1px}
+.nav-l .badge{background:var(--gold);color:var(--bg);font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:10px;margin-left:.3rem;vertical-align:1px}
+.nav-ham{display:none;flex-direction:column;gap:5px;cursor:pointer;background:none;border:none;padding:4px}
+.nav-ham span{width:22px;height:2px;background:var(--txt2);transition:all .3s;border-radius:1px}
+
+/* ===== MAIN ===== */
+#app{opacity:0;transition:opacity .6s ease}
+#app.vis{opacity:1}
+.view{display:none;min-height:100vh;padding-top:64px}
+.view.act{display:block}
+@keyframes mapIn{from{opacity:0;transform:scale(.92);filter:blur(8px)}to{opacity:1;transform:scale(1);filter:blur(0)}}
+#app.map-in{animation:mapIn .8s .4s cubic-bezier(.16,1,.3,1) both}
+
+/* ===== MAP ===== */
+#map-view{position:relative}
+#gmap{width:100%;height:calc(100vh - 64px)}
+
+/* Zip search bar — top center, not overlapping filters */
+.zip-bar{position:absolute;top:76px;left:50%;transform:translateX(-50%);z-index:5;display:flex;align-items:center;background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--bdr);border-radius:40px;padding:.35rem .5rem .35rem 1.1rem;box-shadow:var(--sh);width:400px;max-width:calc(100% - 320px);transition:border-color .3s,box-shadow .3s}
+.zip-bar:focus-within{border-color:var(--gold-d);box-shadow:var(--sh),0 0 0 3px rgba(201,168,76,.08)}
+.zip-bar svg{color:var(--txt3);flex-shrink:0;margin-right:.5rem;transition:color .3s}
+.zip-bar:focus-within svg{color:var(--gold)}
+.zip-bar input{flex:1;background:none;border:none;outline:none;color:var(--txt);font-family:var(--fb);font-size:.85rem;font-weight:500;min-width:0}
+.zip-bar input::placeholder{color:var(--txt3)}
+.zip-clear{flex-shrink:0;width:26px;height:26px;border:none;border-radius:50%;background:rgba(240,236,226,.06);color:var(--txt3);font-size:.9rem;cursor:pointer;display:none;align-items:center;justify-content:center;margin-right:.4rem;transition:all .2s}
+.zip-clear.vis{display:flex}
+.zip-clear:hover{background:rgba(240,236,226,.1);color:var(--txt)}
+.zip-btn{flex-shrink:0;padding:.45rem .9rem;border:none;border-radius:30px;background:linear-gradient(135deg,var(--gold),var(--gold-d));color:var(--bg);font-family:var(--fb);font-size:.72rem;font-weight:700;cursor:pointer;letter-spacing:.06em;text-transform:uppercase;transition:all .25s}
+.zip-btn:hover{box-shadow:var(--sh-g);transform:scale(1.04)}
+
+/* Filter panel — left side, below zip bar */
+.filt-panel{position:absolute;top:76px;left:1rem;z-index:4;background:var(--glass);backdrop-filter:blur(16px);border:1px solid var(--bdr);border-radius:var(--r);padding:1.1rem;width:260px;box-shadow:var(--sh);transition:transform .4s cubic-bezier(.16,1,.3,1)}
+.filt-panel.hide{transform:translateX(calc(-100% - 1rem))}
+.filt-tog{position:absolute;top:76px;left:1rem;z-index:3;width:40px;height:40px;background:var(--glass);backdrop-filter:blur(16px);border:1px solid var(--bdr);border-radius:var(--rs);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gold);font-size:1rem;transition:all .3s;box-shadow:var(--sh)}
+.filt-tog:hover{background:var(--bg4)}
+.filt-tog.hide{opacity:0;pointer-events:none}
+.filt-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem}
+.filt-title{font-family:var(--ff);font-size:.95rem;font-weight:700;color:var(--gold)}
+.filt-x{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:1.1rem;transition:color .2s}
+.filt-x:hover{color:var(--txt)}
+.filt-g{margin-bottom:.9rem}
+.filt-lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--txt3);font-weight:600;margin-bottom:.4rem;display:block}
+.filt-chips{display:flex;flex-wrap:wrap;gap:.3rem}
+.filt-chip{padding:.3rem .6rem;border-radius:20px;font-size:.72rem;font-weight:500;background:rgba(240,236,226,.04);border:1px solid var(--bdr2);color:var(--txt2);cursor:pointer;transition:all .2s}
+.filt-chip:hover{border-color:var(--gold-d);color:var(--txt)}
+.filt-chip.act{background:rgba(201,168,76,.12);border-color:var(--gold);color:var(--gold)}
+.filt-range{display:flex;gap:.4rem;align-items:center}
+.filt-in{flex:1;background:rgba(240,236,226,.04);border:1px solid var(--bdr2);border-radius:var(--rs);padding:.4rem .5rem;color:var(--txt);font-family:var(--fb);font-size:.78rem;outline:none;transition:border-color .2s;min-width:0}
+.filt-in:focus{border-color:var(--gold-d)}
+.filt-in::placeholder{color:var(--txt3)}
+.filt-sel{width:100%;background:rgba(240,236,226,.04);border:1px solid var(--bdr2);border-radius:var(--rs);padding:.4rem .5rem;color:var(--txt);font-family:var(--fb);font-size:.78rem;outline:none;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239e9a90' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .5rem center}
+.filt-sel option{background:var(--bg3);color:var(--txt)}
+.filt-apply{width:100%;padding:.5rem;border:none;border-radius:var(--rs);background:linear-gradient(135deg,var(--gold),var(--gold-d));color:var(--bg);font-family:var(--fb);font-size:.75rem;font-weight:700;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;transition:all .25s;margin-top:.3rem}
+.filt-apply:hover{box-shadow:var(--sh-g);transform:translateY(-1px)}
+
+/* Map count — bottom center */
+.map-ct{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);z-index:5;background:var(--glass);backdrop-filter:blur(16px);border:1px solid var(--bdr);border-radius:30px;padding:.5rem 1.3rem;font-size:.78rem;color:var(--txt2);box-shadow:var(--sh)}
+.map-ct strong{color:var(--gold);font-weight:700}
+
+/* ===== LISTINGS ===== */
+#list-view{background:var(--bg)}
+.list-hdr{padding:2.5rem 2rem 1.2rem;max-width:1400px;margin:0 auto}
+.list-hdr h1{font-family:var(--ff);font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;background:linear-gradient(135deg,var(--gold-l),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.list-hdr p{color:var(--txt2);font-size:.9rem;margin-top:.4rem;font-weight:300}
+.list-bar{display:flex;gap:.4rem;flex-wrap:wrap;padding:0 2rem 1.2rem;max-width:1400px;margin:0 auto;align-items:center}
+.tb-chip{padding:.4rem .9rem;border-radius:30px;font-size:.78rem;font-weight:500;background:rgba(240,236,226,.04);border:1px solid var(--bdr2);color:var(--txt2);cursor:pointer;transition:all .2s}
+.tb-chip:hover{border-color:var(--gold-d);color:var(--txt)}
+.tb-chip.act{background:rgba(201,168,76,.12);border-color:var(--gold);color:var(--gold)}
+.list-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:1.4rem;padding:0 2rem 4rem;max-width:1400px;margin:0 auto}
+
+/* Property card */
+.p-card{background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:all .35s cubic-bezier(.16,1,.3,1);position:relative}
+.p-card:hover{border-color:var(--bdr);transform:translateY(-4px);box-shadow:var(--sh),0 0 40px rgba(201,168,76,.06)}
+.p-card.featured{border-color:rgba(201,168,76,.25)}
+.p-card.featured::before{content:'FEATURED';position:absolute;top:12px;right:-28px;background:var(--gold);color:var(--bg);font-size:.55rem;font-weight:800;padding:.2rem 2rem;transform:rotate(45deg);z-index:2;letter-spacing:.1em}
+.pc-img-w{position:relative;height:190px;overflow:hidden}
+.pc-img{width:100%;height:100%;object-fit:cover;transition:transform .5s cubic-bezier(.16,1,.3,1)}
+.p-card:hover .pc-img{transform:scale(1.06)}
+.pc-tags{position:absolute;top:.7rem;left:.7rem;display:flex;gap:.3rem}
+.pc-tag{font-size:.6rem;padding:.2rem .55rem;border-radius:20px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;backdrop-filter:blur(8px)}
+.pc-tag.t-r{background:rgba(78,203,113,.85);color:#0a0a0c}
+.pc-tag.t-f{background:rgba(232,93,93,.85);color:#fff}
+.pc-tag.t-p{background:rgba(74,158,255,.85);color:#fff}
+.pc-save{position:absolute;top:.7rem;right:.7rem;width:32px;height:32px;background:rgba(10,10,12,.6);backdrop-filter:blur(8px);border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt2);font-size:.95rem;transition:all .2s}
+.pc-save:hover{color:var(--red);background:rgba(10,10,12,.8)}
+.pc-save.on{color:var(--red)}
+.pc-cmp{position:absolute;bottom:.7rem;right:.7rem;width:28px;height:28px;background:rgba(10,10,12,.6);backdrop-filter:blur(8px);border:1px solid transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt3);font-size:.7rem;transition:all .2s}
+.pc-cmp:hover{color:var(--blue);border-color:var(--blue)}
+.pc-cmp.on{color:var(--blue);border-color:var(--blue);background:rgba(74,158,255,.15)}
+.pc-body{padding:1.1rem}
+.pc-price{font-family:var(--ff);font-size:1.4rem;font-weight:700;color:var(--gold)}
+.pc-addr{font-size:.82rem;color:var(--txt2);margin:.2rem 0 .65rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-stats{display:flex;gap:1.1rem;padding-top:.65rem;border-top:1px solid var(--bdr2)}
+.pc-stat{font-size:.75rem;color:var(--txt3)}
+.pc-stat b{color:var(--txt);margin-right:.15rem}
+.pc-foot{display:flex;justify-content:space-between;align-items:center;padding:.65rem 1.1rem;border-top:1px solid var(--bdr2);background:rgba(240,236,226,.015)}
+.pc-roi{font-size:.72rem;color:var(--green);font-weight:600}
+.pc-roi span{color:var(--txt3);font-weight:400}
+.pc-btn{font-size:.72rem;color:var(--gold);background:none;border:1px solid var(--gold-d);border-radius:20px;padding:.25rem .7rem;cursor:pointer;font-weight:600;transition:all .2s}
+.pc-btn:hover{background:var(--gold);color:var(--bg)}
+
+/* No results */
+.no-res{grid-column:1/-1;text-align:center;padding:4rem 2rem;color:var(--txt3)}
+.no-res-i{font-size:3rem;margin-bottom:1rem;opacity:.4}
+
+/* ===== CALCULATOR VIEW ===== */
+#calc-view{background:var(--bg);padding-bottom:4rem}
+.calc-hdr{padding:2.5rem 2rem 1.5rem;max-width:1100px;margin:0 auto;text-align:center}
+.calc-hdr h1{font-family:var(--ff);font-size:clamp(1.8rem,4vw,2.5rem);font-weight:700;background:linear-gradient(135deg,var(--gold-l),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.calc-hdr p{color:var(--txt2);font-size:.9rem;margin-top:.4rem}
+.calc-tabs{display:flex;gap:.4rem;justify-content:center;margin-bottom:2rem;flex-wrap:wrap;padding:0 1rem}
+.calc-tab{padding:.5rem 1.2rem;border-radius:30px;font-size:.82rem;font-weight:600;background:rgba(240,236,226,.04);border:1px solid var(--bdr2);color:var(--txt2);cursor:pointer;transition:all .2s}
+.calc-tab:hover{border-color:var(--gold-d);color:var(--txt)}
+.calc-tab.act{background:rgba(201,168,76,.12);border-color:var(--gold);color:var(--gold)}
+.calc-panel{display:none;max-width:900px;margin:0 auto;padding:0 2rem}
+.calc-panel.act{display:block}
+.calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:2rem}
+.calc-form{background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r);padding:1.5rem}
+.calc-form h3{font-family:var(--ff);font-size:1.1rem;font-weight:700;margin-bottom:1.2rem;color:var(--gold)}
+.calc-fg{margin-bottom:1rem}
+.calc-fl{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--txt3);font-weight:600;margin-bottom:.4rem}
+.calc-fi{width:100%;background:rgba(240,236,226,.04);border:1px solid var(--bdr2);border-radius:var(--rs);padding:.6rem .8rem;color:var(--txt);font-family:var(--fb);font-size:.85rem;outline:none;transition:border-color .2s}
+.calc-fi:focus{border-color:var(--gold-d)}
+.calc-fi::placeholder{color:var(--txt3)}
+.calc-compute{width:100%;padding:.65rem;border:none;border-radius:var(--rs);background:linear-gradient(135deg,var(--gold),var(--gold-d));color:var(--bg);font-family:var(--fb);font-size:.82rem;font-weight:700;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;transition:all .25s;margin-top:.5rem}
+.calc-compute:hover{box-shadow:var(--sh-g);transform:translateY(-1px)}
+.calc-result{background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r);padding:1.5rem}
+.calc-result h3{font-family:var(--ff);font-size:1.1rem;font-weight:700;margin-bottom:1.2rem;color:var(--gold)}
+.cr-row{display:flex;justify-content:space-between;align-items:center;padding:.6rem 0;border-bottom:1px solid var(--bdr2)}
+.cr-row:last-child{border-bottom:none}
+.cr-label{font-size:.82rem;color:var(--txt2)}
+.cr-val{font-size:.95rem;font-weight:700;color:var(--txt)}
+.cr-val.hi{color:var(--green);font-size:1.2rem}
+.cr-val.neg{color:var(--red)}
+.cr-big{text-align:center;padding:1.5rem 0}
+.cr-big-val{font-family:var(--ff);font-size:2.5rem;font-weight:800;color:var(--gold)}
+.cr-big-lbl{font-size:.75rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;margin-top:.3rem}
+
+/* ===== SAVED VIEW ===== */
+#saved-view{background:var(--bg);padding-bottom:4rem}
+.saved-hdr{padding:2.5rem 2rem 1.5rem;max-width:1400px;margin:0 auto}
+.saved-hdr h1{font-family:var(--ff);font-size:clamp(1.8rem,4vw,2.5rem);font-weight:700;background:linear-gradient(135deg,var(--gold-l),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.saved-hdr p{color:var(--txt2);font-size:.9rem;margin-top:.4rem}
+.saved-empty{text-align:center;padding:4rem 2rem;color:var(--txt3)}
+.saved-empty-i{font-size:3.5rem;margin-bottom:1rem;opacity:.3}
+
+/* ===== COMPARE VIEW ===== */
+#cmp-view{background:var(--bg);padding-bottom:4rem}
+.cmp-hdr{padding:2.5rem 2rem 1.5rem;max-width:1400px;margin:0 auto}
+.cmp-hdr h1{font-family:var(--ff);font-size:clamp(1.6rem,3vw,2.2rem);font-weight:700;background:linear-gradient(135deg,var(--gold-l),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.cmp-hdr p{color:var(--txt2);font-size:.9rem;margin-top:.4rem}
+.cmp-table{max-width:1400px;margin:0 auto;padding:0 2rem;overflow-x:auto}
+.cmp-tbl{width:100%;border-collapse:collapse;min-width:600px}
+.cmp-tbl th{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--txt3);font-weight:600;padding:.8rem 1rem;text-align:left;border-bottom:1px solid var(--bdr);position:sticky;top:64px;background:var(--bg)}
+.cmp-tbl td{padding:.8rem 1rem;border-bottom:1px solid var(--bdr2);font-size:.85rem;vertical-align:middle}
+.cmp-tbl tr:hover td{background:rgba(240,236,226,.02)}
+.cmp-prop-cell{display:flex;align-items:center;gap:.8rem}
+.cmp-prop-img{width:60px;height:40px;border-radius:6px;object-fit:cover}
+.cmp-prop-name{font-weight:600;font-size:.82rem}
+.cmp-remove{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:.9rem;transition:color .2s}
+.cmp-remove:hover{color:var(--red)}
+.cmp-empty{text-align:center;padding:4rem 2rem;color:var(--txt3)}
+
+/* ===== ABOUT VIEW ===== */
+#about-view{background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;min-height:100vh;padding:6rem 2rem 4rem;text-align:center}
+.ab-badge{font-size:.7rem;text-transform:uppercase;letter-spacing:.2em;color:var(--gold);font-weight:600;margin-bottom:1.5rem;padding:.4rem 1.2rem;border:1px solid var(--gold-d);border-radius:30px;display:inline-block}
+.ab-h{font-family:var(--ff);font-size:clamp(2rem,5vw,3.5rem);font-weight:700;max-width:700px;line-height:1.2;margin-bottom:1.5rem}
+.ab-h em{font-style:normal;background:linear-gradient(135deg,var(--gold-l),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.ab-p{max-width:560px;color:var(--txt2);font-size:1.05rem;line-height:1.7;margin-bottom:2.5rem}
+.ab-feats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem;max-width:800px;width:100%;margin-top:1rem}
+.ab-feat{background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--r);padding:1.75rem;text-align:left;transition:border-color .3s}
+.ab-feat:hover{border-color:var(--bdr)}
+.ab-feat-i{font-size:1.6rem;margin-bottom:.75rem;display:block}
+.ab-feat-t{font-family:var(--ff);font-size:1.05rem;font-weight:700;margin-bottom:.4rem}
+.ab-feat-d{font-size:.83rem;color:var(--txt2);line-height:1.5}
+
+/* ===== MODAL ===== */
+.modal-ov{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .35s;padding:1rem}
+.modal-ov.open{opacity:1;pointer-events:all}
+.modal{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--rl);max-width:680px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.6);transform:translateY(20px) scale(.97);transition:transform .4s cubic-bezier(.16,1,.3,1);position:relative}
+.modal-ov.open .modal{transform:translateY(0) scale(1)}
+.modal-img{width:100%;height:240px;object-fit:cover;display:block}
+.modal-x{position:absolute;top:.8rem;right:.8rem;width:34px;height:34px;background:rgba(10,10,12,.7);backdrop-filter:blur(8px);border:none;border-radius:50%;color:#fff;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;z-index:2}
+.modal-x:hover{background:rgba(10,10,12,.9)}
+.modal-body{padding:1.8rem}
+.modal-price{font-family:var(--ff);font-size:1.8rem;font-weight:700;color:var(--gold)}
+.modal-addr{color:var(--txt2);margin:.2rem 0 .3rem;font-size:.9rem}
+.modal-zip{color:var(--txt3);font-size:.78rem;margin-bottom:.8rem}
+.modal-tags{display:flex;gap:.4rem;margin-bottom:1rem;flex-wrap:wrap}
+.m-tag{font-size:.62rem;padding:.2rem .55rem;border-radius:20px;font-weight:600;letter-spacing:.03em;text-transform:uppercase}
+.m-tag.t-r{background:rgba(78,203,113,.12);color:var(--green)}
+.m-tag.t-f{background:rgba(232,93,93,.12);color:var(--red)}
+.m-tag.t-p{background:rgba(74,158,255,.12);color:var(--blue)}
+.modal-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;margin-bottom:1.2rem}
+.ms-box{background:rgba(240,236,226,.03);border:1px solid var(--bdr2);border-radius:var(--rs);padding:.7rem;text-align:center}
+.ms-val{font-family:var(--ff);font-size:1.1rem;font-weight:700}
+.ms-lbl{font-size:.62rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-top:.15rem}
+
+/* Neighborhood stats in modal */
+.modal-hood{margin-bottom:1.2rem}
+.modal-hood h4{font-family:var(--ff);font-size:.9rem;font-weight:700;margin-bottom:.6rem;color:var(--gold-l)}
+.hood-bars{display:grid;grid-template-columns:1fr 1fr;gap:.5rem .8rem}
+.hood-bar{display:flex;align-items:center;gap:.5rem}
+.hood-bar-lbl{font-size:.72rem;color:var(--txt2);width:80px;flex-shrink:0}
+.hood-bar-track{flex:1;height:6px;background:rgba(240,236,226,.06);border-radius:3px;overflow:hidden}
+.hood-bar-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.hood-bar-val{font-size:.7rem;font-weight:600;width:28px;text-align:right;flex-shrink:0}
+
+.modal-desc{color:var(--txt2);line-height:1.6;font-size:.88rem;margin-bottom:1.2rem}
+.modal-acts{display:flex;gap:.6rem;flex-wrap:wrap}
+.m-btn{flex:1;min-width:120px;padding:.7rem;border-radius:var(--rs);font-family:var(--fb);font-size:.8rem;font-weight:700;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;transition:all .25s;text-align:center}
+.m-btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-d));color:var(--bg);border:none}
+.m-btn-gold:hover{box-shadow:var(--sh-g);transform:translateY(-2px)}
+.m-btn-out{background:transparent;border:1px solid var(--bdr);color:var(--txt2)}
+.m-btn-out:hover{border-color:var(--gold-d);color:var(--txt)}
+.m-btn-green{background:rgba(78,203,113,.12);border:1px solid rgba(78,203,113,.3);color:var(--green)}
+.m-btn-green:hover{background:rgba(78,203,113,.2)}
+
+/* ===== CONTACT AGENT MODAL ===== */
+.ca-form{margin-top:1rem}
+.ca-row{display:flex;gap:.6rem;margin-bottom:.8rem}
+.ca-row .calc-fi{flex:1}
+
+/* ===== MORTGAGE MODAL ===== */
+.mort-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1rem}
+.mort-result{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.mort-big{font-family:var(--ff);font-size:2.8rem;font-weight:800;color:var(--gold)}
+.mort-big-lbl{font-size:.72rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;margin-top:.3rem}
+.mort-breakdown{margin-top:1rem;width:100%}
+
+/* ===== COMPARE BAR (floating) ===== */
+.cmp-bar{position:fixed;bottom:0;left:0;right:0;z-index:1500;background:rgba(10,10,12,.92);backdrop-filter:blur(16px);border-top:1px solid var(--bdr);padding:.7rem 2rem;display:none;align-items:center;justify-content:space-between;transform:translateY(100%);transition:transform .4s cubic-bezier(.16,1,.3,1)}
+.cmp-bar.vis{display:flex;transform:translateY(0)}
+.cmp-bar-txt{font-size:.82rem;color:var(--txt2)}
+.cmp-bar-txt strong{color:var(--gold)}
+.cmp-bar-btn{padding:.5rem 1.2rem;border:none;border-radius:30px;background:linear-gradient(135deg,var(--gold),var(--gold-d));color:var(--bg);font-family:var(--fb);font-size:.78rem;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;transition:all .25s}
+.cmp-bar-btn:hover{box-shadow:var(--sh-g)}
+.cmp-bar-clear{padding:.5rem .8rem;border:1px solid var(--bdr);border-radius:30px;background:none;color:var(--txt3);font-family:var(--fb);font-size:.75rem;cursor:pointer;transition:all .2s;margin-left:.5rem}
+.cmp-bar-clear:hover{border-color:var(--red);color:var(--red)}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:768px){
+  .nav-links{display:none;position:fixed;top:64px;left:0;right:0;background:rgba(10,10,12,.95);backdrop-filter:blur(20px);flex-direction:column;padding:1rem;border-bottom:1px solid var(--bdr);z-index:999}
+  .nav-links.open{display:flex}
+  .nav-ham{display:flex}
+  .filt-panel{width:calc(100% - 2rem);left:1rem;top:130px}
+  .zip-bar{max-width:calc(100% - 2rem);top:76px}
+  .list-grid{grid-template-columns:1fr}
+  .modal-stats{grid-template-columns:repeat(2,1fr)}
+  .modal-img{height:180px}
+  .calc-grid{grid-template-columns:1fr}
+  .mort-grid{grid-template-columns:1fr}
+  .hood-bars{grid-template-columns:1fr}
+  .cmp-bar{flex-wrap:wrap;gap:.5rem;justify-content:center}
+}
+.anim-in{opacity:0;transform:translateY(20px);animation:revUp .5s cubic-bezier(.16,1,.3,1) forwards}
 </style>
 </head>
 <body>
 
-<!-- INTRO OVERLAY -->
-<div id="intro-overlay">
-  <canvas id="grid-canvas"></canvas>
-  <div class="intro-content">
+<!-- ===== INTRO ===== -->
+<div id="intro">
+  <canvas id="grid-cv"></canvas>
+  <div class="intro-c">
     <div class="intro-logo">Estate IQ</div>
-    <div class="intro-tagline">Intelligent Property Discovery</div>
-    <div class="intro-pulse"></div>
+    <div class="intro-sub">Intelligent Property Discovery</div>
+    <div class="intro-bar"></div>
   </div>
 </div>
 
-<!-- SIGN IN PAGE -->
-<div id="signin-page">
-  <div class="signin-orb"></div>
-  <div class="signin-orb"></div>
-  <div class="signin-orb"></div>
-  <div class="signin-container">
-    <div class="signin-brand">
-      <div class="signin-brand-name">Estate IQ</div>
-      <div class="signin-brand-sub">Intelligent Property Discovery</div>
+<!-- ===== SIGN IN ===== -->
+<div id="signin">
+  <div class="s-orb"></div><div class="s-orb"></div><div class="s-orb"></div>
+  <div class="si-wrap">
+    <div class="si-brand">
+      <div class="si-bname">Estate IQ</div>
+      <div class="si-bsub">Intelligent Property Discovery</div>
     </div>
-    <div class="signin-card">
-      <div class="signin-title">Welcome back</div>
-      <div class="signin-subtitle">Sign in to access your property dashboard</div>
-      <form id="signinForm" onsubmit="handleSignIn(event)">
-        <div class="signin-field">
-          <label class="signin-label">Email Address</label>
-          <input type="email" class="signin-input" id="signinEmail" placeholder="you@example.com" autocomplete="email" />
+    <div class="si-card">
+      <div class="si-title">Welcome back</div>
+      <div class="si-sub">Sign in to access your property dashboard</div>
+      <form onsubmit="doSignIn(event)">
+        <div class="si-field"><label class="si-label">Email Address</label><input type="email" class="si-input" placeholder="you@example.com"></div>
+        <div class="si-field"><label class="si-label">Password</label><input type="password" class="si-input" placeholder="Enter your password"></div>
+        <div class="si-opts">
+          <label class="si-rem"><input type="checkbox" checked> Remember me</label>
+          <button type="button" class="si-forgot">Forgot password?</button>
         </div>
-        <div class="signin-field">
-          <label class="signin-label">Password</label>
-          <input type="password" class="signin-input" id="signinPassword" placeholder="Enter your password" autocomplete="current-password" />
-        </div>
-        <div class="signin-options">
-          <label class="signin-remember">
-            <input type="checkbox" checked /> Remember me
-          </label>
-          <button type="button" class="signin-forgot">Forgot password?</button>
-        </div>
-        <button type="submit" class="signin-btn">Sign In</button>
+        <button type="submit" class="si-btn">Sign In</button>
       </form>
-      <div class="signin-divider">or continue with</div>
-      <div class="signin-social">
-        <button type="button" class="signin-social-btn" onclick="handleSignIn(event)">
+      <div class="si-div">or continue with</div>
+      <div class="si-social">
+        <button type="button" class="si-social-btn" onclick="doSignIn(event)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
           Google
         </button>
-        <button type="button" class="signin-social-btn" onclick="handleSignIn(event)">
+        <button type="button" class="si-social-btn" onclick="doSignIn(event)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
           GitHub
         </button>
       </div>
     </div>
-    <div class="signin-footer">
-      Don't have an account? <a onclick="handleSignIn(event)">Create one</a>
-    </div>
+    <div class="si-foot">Don't have an account? <a onclick="doSignIn(event)">Create one</a></div>
   </div>
 </div>
 
-<!-- NAVBAR -->
-<nav id="navbar">
-  <div class="nav-brand" onclick="goHome()">Estate IQ</div>
+<!-- ===== NAVBAR ===== -->
+<nav id="nav">
+  <div class="nav-b" onclick="go('map-view')">Estate IQ</div>
   <div class="nav-links" id="navLinks">
-    <button class="nav-link active" data-view="map-view" onclick="switchView('map-view')">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16"/><path d="M16 6v16"/></svg>
-      Map
-    </button>
-    <button class="nav-link" data-view="listings-view" onclick="switchView('listings-view')">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-      Listings
-    </button>
-    <button class="nav-link" data-view="about-view" onclick="switchView('about-view')">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-      About
-    </button>
+    <button class="nav-l act" data-v="map-view" onclick="go('map-view')">Map</button>
+    <button class="nav-l" data-v="list-view" onclick="go('list-view')">Listings</button>
+    <button class="nav-l" data-v="calc-view" onclick="go('calc-view')">Calculator</button>
+    <button class="nav-l" data-v="saved-view" onclick="go('saved-view')">Saved<span class="badge" id="savedBadge" style="display:none">0</span></button>
+    <button class="nav-l" data-v="cmp-view" onclick="go('cmp-view')">Compare</button>
+    <button class="nav-l" data-v="about-view" onclick="go('about-view')">About</button>
   </div>
-  <button class="nav-hamburger" id="hamburger" onclick="toggleMobileNav()">
-    <span></span><span></span><span></span>
-  </button>
+  <button class="nav-ham" onclick="document.getElementById('navLinks').classList.toggle('open')"><span></span><span></span><span></span></button>
 </nav>
 
-<!-- APP CONTAINER -->
+<!-- ===== APP ===== -->
 <div id="app">
 
-  <!-- MAP VIEW -->
-  <div id="map-view" class="view active">
-    <div id="map"></div>
+  <!-- MAP -->
+  <div id="map-view" class="view act">
+    <div id="gmap"></div>
 
-    <div class="zip-search" id="zipSearch">
-      <svg class="zip-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" class="zip-search-input" id="zipInput" placeholder="Search by zip code..." maxlength="5" inputmode="numeric" onkeydown="if(event.key==='Enter')searchByZip()" oninput="onZipInput(this)" />
-      <button class="zip-search-clear" id="zipClear" onclick="clearZipSearch()">&times;</button>
-      <button class="zip-search-btn" onclick="searchByZip()">Search</button>
+    <div class="zip-bar">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="zipIn" placeholder="Search by zip code..." maxlength="5" inputmode="numeric" onkeydown="if(event.key==='Enter')zipSearch()" oninput="zipTyping(this)">
+      <button class="zip-clear" id="zipX" onclick="zipClear()">&times;</button>
+      <button class="zip-btn" onclick="zipSearch()">Search</button>
     </div>
 
-    <button class="filter-toggle hidden" id="filterToggle" onclick="openFilters()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+    <button class="filt-tog hide" id="filtTog" onclick="filtOpen()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
     </button>
 
-    <div class="map-filters" id="mapFilters">
-      <div class="filter-header">
-        <span class="filter-title">Filters</span>
-        <button class="filter-close" onclick="closeFilters()">&times;</button>
+    <div class="filt-panel" id="filtPanel">
+      <div class="filt-hdr">
+        <span class="filt-title">Filters</span>
+        <button class="filt-x" onclick="filtClose()">&times;</button>
       </div>
-
-      <div class="filter-group">
-        <label class="filter-label">Property Type</label>
-        <div class="filter-chips" id="typeChips">
-          <span class="filter-chip active" data-type="all" onclick="toggleTypeChip(this)">All</span>
-          <span class="filter-chip" data-type="rental" onclick="toggleTypeChip(this)">Rental</span>
-          <span class="filter-chip" data-type="flip" onclick="toggleTypeChip(this)">Flip</span>
-          <span class="filter-chip" data-type="residential" onclick="toggleTypeChip(this)">Residential</span>
+      <div class="filt-g">
+        <label class="filt-lbl">Property Type</label>
+        <div class="filt-chips" id="fChips">
+          <span class="filt-chip act" data-t="all" onclick="fChip(this)">All</span>
+          <span class="filt-chip" data-t="rental" onclick="fChip(this)">Rental</span>
+          <span class="filt-chip" data-t="flip" onclick="fChip(this)">Flip</span>
+          <span class="filt-chip" data-t="residential" onclick="fChip(this)">Residential</span>
         </div>
       </div>
-
-      <div class="filter-group">
-        <label class="filter-label">Price Range</label>
-        <div class="filter-range">
-          <input type="text" class="filter-input" id="priceMin" placeholder="Min" />
-          <span class="filter-sep">—</span>
-          <input type="text" class="filter-input" id="priceMax" placeholder="Max" />
+      <div class="filt-g">
+        <label class="filt-lbl">Price Range</label>
+        <div class="filt-range">
+          <input type="text" class="filt-in" id="fMin" placeholder="Min">
+          <span style="color:var(--txt3);font-size:.8rem">—</span>
+          <input type="text" class="filt-in" id="fMax" placeholder="Max">
         </div>
       </div>
-
-      <div class="filter-group">
-        <label class="filter-label">Bedrooms</label>
-        <select class="filter-select" id="bedsFilter">
-          <option value="any">Any</option>
+      <div class="filt-g">
+        <label class="filt-lbl">Bedrooms</label>
+        <select class="filt-sel" id="fBeds">
+          <option value="0">Any</option>
           <option value="1">1+</option>
           <option value="2">2+</option>
           <option value="3">3+</option>
@@ -1289,694 +463,587 @@ canvas#grid-canvas {
           <option value="5">5+</option>
         </select>
       </div>
-
-      <button class="filter-apply" onclick="applyFilters()">Apply Filters</button>
+      <button class="filt-apply" onclick="applyFilters()">Apply Filters</button>
     </div>
 
-    <div class="map-count" id="mapCount">
-      Showing <strong id="visibleCount">0</strong> properties
+    <div class="map-ct"><strong id="visCt">0</strong> properties shown</div>
+  </div>
+
+  <!-- LISTINGS -->
+  <div id="list-view" class="view">
+    <div class="list-hdr"><h1>Explore Properties</h1><p>Discover your next investment or dream home</p></div>
+    <div class="list-bar" id="listBar">
+      <span class="tb-chip act" data-t="all" onclick="lChip(this)">All</span>
+      <span class="tb-chip" data-t="rental" onclick="lChip(this)">Rentals</span>
+      <span class="tb-chip" data-t="flip" onclick="lChip(this)">Flip Deals</span>
+      <span class="tb-chip" data-t="residential" onclick="lChip(this)">Residential</span>
+    </div>
+    <div class="list-grid" id="listGrid"></div>
+  </div>
+
+  <!-- CALCULATOR -->
+  <div id="calc-view" class="view">
+    <div class="calc-hdr"><h1>Investment Calculator</h1><p>Run the numbers before you commit</p></div>
+    <div class="calc-tabs">
+      <span class="calc-tab act" onclick="calcTab(this,'mortgage')">Mortgage</span>
+      <span class="calc-tab" onclick="calcTab(this,'rental')">Rental Cash Flow</span>
+      <span class="calc-tab" onclick="calcTab(this,'flip')">Flip Profit</span>
+      <span class="calc-tab" onclick="calcTab(this,'brrrr')">BRRRR</span>
+    </div>
+
+    <!-- Mortgage -->
+    <div class="calc-panel act" id="cp-mortgage">
+      <div class="calc-grid">
+        <div class="calc-form">
+          <h3>Mortgage Details</h3>
+          <div class="calc-fg"><label class="calc-fl">Home Price ($)</label><input class="calc-fi" id="m-price" type="number" value="500000"></div>
+          <div class="calc-fg"><label class="calc-fl">Down Payment (%)</label><input class="calc-fi" id="m-down" type="number" value="20"></div>
+          <div class="calc-fg"><label class="calc-fl">Interest Rate (%)</label><input class="calc-fi" id="m-rate" type="number" value="6.5" step="0.1"></div>
+          <div class="calc-fg"><label class="calc-fl">Loan Term (years)</label><input class="calc-fi" id="m-term" type="number" value="30"></div>
+          <div class="calc-fg"><label class="calc-fl">Property Tax ($/yr)</label><input class="calc-fi" id="m-tax" type="number" value="6000"></div>
+          <div class="calc-fg"><label class="calc-fl">Insurance ($/yr)</label><input class="calc-fi" id="m-ins" type="number" value="1800"></div>
+          <button class="calc-compute" onclick="calcMortgage()">Calculate</button>
+        </div>
+        <div class="calc-result" id="m-result">
+          <h3>Monthly Payment</h3>
+          <div class="cr-big"><div class="cr-big-val" id="m-total">$0</div><div class="cr-big-lbl">Total Monthly</div></div>
+          <div class="cr-row"><span class="cr-label">Principal & Interest</span><span class="cr-val" id="m-pi">—</span></div>
+          <div class="cr-row"><span class="cr-label">Property Tax</span><span class="cr-val" id="m-ptax">—</span></div>
+          <div class="cr-row"><span class="cr-label">Insurance</span><span class="cr-val" id="m-pins">—</span></div>
+          <div class="cr-row"><span class="cr-label">Down Payment</span><span class="cr-val" id="m-dp">—</span></div>
+          <div class="cr-row"><span class="cr-label">Loan Amount</span><span class="cr-val" id="m-loan">—</span></div>
+          <div class="cr-row"><span class="cr-label">Total Interest Paid</span><span class="cr-val" id="m-tint">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rental Cash Flow -->
+    <div class="calc-panel" id="cp-rental">
+      <div class="calc-grid">
+        <div class="calc-form">
+          <h3>Rental Analysis</h3>
+          <div class="calc-fg"><label class="calc-fl">Purchase Price ($)</label><input class="calc-fi" id="r-price" type="number" value="400000"></div>
+          <div class="calc-fg"><label class="calc-fl">Down Payment (%)</label><input class="calc-fi" id="r-down" type="number" value="25"></div>
+          <div class="calc-fg"><label class="calc-fl">Interest Rate (%)</label><input class="calc-fi" id="r-rate" type="number" value="7" step="0.1"></div>
+          <div class="calc-fg"><label class="calc-fl">Monthly Rent ($)</label><input class="calc-fi" id="r-rent" type="number" value="2800"></div>
+          <div class="calc-fg"><label class="calc-fl">Property Tax ($/yr)</label><input class="calc-fi" id="r-tax" type="number" value="5000"></div>
+          <div class="calc-fg"><label class="calc-fl">Insurance ($/yr)</label><input class="calc-fi" id="r-ins" type="number" value="1500"></div>
+          <div class="calc-fg"><label class="calc-fl">Maintenance ($/mo)</label><input class="calc-fi" id="r-maint" type="number" value="200"></div>
+          <div class="calc-fg"><label class="calc-fl">Vacancy Rate (%)</label><input class="calc-fi" id="r-vac" type="number" value="5"></div>
+          <button class="calc-compute" onclick="calcRental()">Calculate</button>
+        </div>
+        <div class="calc-result" id="r-result">
+          <h3>Cash Flow Analysis</h3>
+          <div class="cr-big"><div class="cr-big-val" id="r-cf">$0</div><div class="cr-big-lbl">Monthly Cash Flow</div></div>
+          <div class="cr-row"><span class="cr-label">Gross Rent</span><span class="cr-val" id="r-gross">—</span></div>
+          <div class="cr-row"><span class="cr-label">Vacancy Loss</span><span class="cr-val neg" id="r-vloss">—</span></div>
+          <div class="cr-row"><span class="cr-label">Mortgage Payment</span><span class="cr-val" id="r-mort">—</span></div>
+          <div class="cr-row"><span class="cr-label">Tax + Insurance</span><span class="cr-val" id="r-ti">—</span></div>
+          <div class="cr-row"><span class="cr-label">Maintenance</span><span class="cr-val" id="r-mt">—</span></div>
+          <div class="cr-row"><span class="cr-label">Cap Rate</span><span class="cr-val hi" id="r-cap">—</span></div>
+          <div class="cr-row"><span class="cr-label">Cash-on-Cash Return</span><span class="cr-val hi" id="r-coc">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Flip Profit -->
+    <div class="calc-panel" id="cp-flip">
+      <div class="calc-grid">
+        <div class="calc-form">
+          <h3>Flip Analysis</h3>
+          <div class="calc-fg"><label class="calc-fl">Purchase Price ($)</label><input class="calc-fi" id="f-price" type="number" value="300000"></div>
+          <div class="calc-fg"><label class="calc-fl">Rehab Costs ($)</label><input class="calc-fi" id="f-rehab" type="number" value="60000"></div>
+          <div class="calc-fg"><label class="calc-fl">After Repair Value ($)</label><input class="calc-fi" id="f-arv" type="number" value="450000"></div>
+          <div class="calc-fg"><label class="calc-fl">Holding Costs ($/mo)</label><input class="calc-fi" id="f-hold" type="number" value="2500"></div>
+          <div class="calc-fg"><label class="calc-fl">Hold Time (months)</label><input class="calc-fi" id="f-time" type="number" value="4"></div>
+          <div class="calc-fg"><label class="calc-fl">Closing Costs (%)</label><input class="calc-fi" id="f-close" type="number" value="6"></div>
+          <button class="calc-compute" onclick="calcFlip()">Calculate</button>
+        </div>
+        <div class="calc-result">
+          <h3>Flip Profit</h3>
+          <div class="cr-big"><div class="cr-big-val" id="f-profit">$0</div><div class="cr-big-lbl">Net Profit</div></div>
+          <div class="cr-row"><span class="cr-label">ARV</span><span class="cr-val" id="f-arvv">—</span></div>
+          <div class="cr-row"><span class="cr-label">Purchase + Rehab</span><span class="cr-val" id="f-cost">—</span></div>
+          <div class="cr-row"><span class="cr-label">Holding Costs</span><span class="cr-val" id="f-hcost">—</span></div>
+          <div class="cr-row"><span class="cr-label">Closing Costs</span><span class="cr-val" id="f-ccost">—</span></div>
+          <div class="cr-row"><span class="cr-label">ROI</span><span class="cr-val hi" id="f-roi">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BRRRR -->
+    <div class="calc-panel" id="cp-brrrr">
+      <div class="calc-grid">
+        <div class="calc-form">
+          <h3>BRRRR Strategy</h3>
+          <div class="calc-fg"><label class="calc-fl">Purchase Price ($)</label><input class="calc-fi" id="b-price" type="number" value="250000"></div>
+          <div class="calc-fg"><label class="calc-fl">Rehab Costs ($)</label><input class="calc-fi" id="b-rehab" type="number" value="50000"></div>
+          <div class="calc-fg"><label class="calc-fl">After Repair Value ($)</label><input class="calc-fi" id="b-arv" type="number" value="380000"></div>
+          <div class="calc-fg"><label class="calc-fl">Refinance LTV (%)</label><input class="calc-fi" id="b-ltv" type="number" value="75"></div>
+          <div class="calc-fg"><label class="calc-fl">Refi Rate (%)</label><input class="calc-fi" id="b-rate" type="number" value="7" step="0.1"></div>
+          <div class="calc-fg"><label class="calc-fl">Monthly Rent ($)</label><input class="calc-fi" id="b-rent" type="number" value="2200"></div>
+          <div class="calc-fg"><label class="calc-fl">Monthly Expenses ($)</label><input class="calc-fi" id="b-exp" type="number" value="600"></div>
+          <button class="calc-compute" onclick="calcBRRRR()">Calculate</button>
+        </div>
+        <div class="calc-result">
+          <h3>BRRRR Results</h3>
+          <div class="cr-big"><div class="cr-big-val" id="b-left">$0</div><div class="cr-big-lbl">Cash Left In Deal</div></div>
+          <div class="cr-row"><span class="cr-label">Total Investment</span><span class="cr-val" id="b-invest">—</span></div>
+          <div class="cr-row"><span class="cr-label">Refi Loan Amount</span><span class="cr-val" id="b-refi">—</span></div>
+          <div class="cr-row"><span class="cr-label">Cash Back at Refi</span><span class="cr-val hi" id="b-back">—</span></div>
+          <div class="cr-row"><span class="cr-label">Monthly Mortgage</span><span class="cr-val" id="b-mort">—</span></div>
+          <div class="cr-row"><span class="cr-label">Monthly Cash Flow</span><span class="cr-val hi" id="b-cf">—</span></div>
+          <div class="cr-row"><span class="cr-label">Cash-on-Cash Return</span><span class="cr-val hi" id="b-coc">—</span></div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- LISTINGS VIEW -->
-  <div id="listings-view" class="view">
-    <div class="listings-header">
-      <h1 class="listings-title">Explore Properties</h1>
-      <p class="listings-subtitle">Discover your next investment or dream home</p>
-    </div>
-    <div class="listings-toolbar" id="listingsToolbar">
-      <span class="toolbar-chip active" data-type="all" onclick="toggleListingFilter(this)">All</span>
-      <span class="toolbar-chip" data-type="rental" onclick="toggleListingFilter(this)">Rentals</span>
-      <span class="toolbar-chip" data-type="flip" onclick="toggleListingFilter(this)">Flip Deals</span>
-      <span class="toolbar-chip" data-type="residential" onclick="toggleListingFilter(this)">Residential</span>
-    </div>
-    <div class="listings-grid" id="listingsGrid"></div>
+  <!-- SAVED -->
+  <div id="saved-view" class="view">
+    <div class="saved-hdr"><h1>Saved Properties</h1><p>Your bookmarked properties</p></div>
+    <div class="list-grid" id="savedGrid" style="padding:0 2rem 4rem;max-width:1400px;margin:0 auto"></div>
   </div>
 
-  <!-- ABOUT VIEW -->
+  <!-- COMPARE -->
+  <div id="cmp-view" class="view">
+    <div class="cmp-hdr"><h1>Compare Properties</h1><p>Side-by-side property comparison</p></div>
+    <div class="cmp-table" id="cmpTable"></div>
+  </div>
+
+  <!-- ABOUT -->
   <div id="about-view" class="view">
-    <span class="about-badge">Powered by Intelligence</span>
-    <h1 class="about-heading">Real estate investing, <em>simplified.</em></h1>
-    <p class="about-text">
-      Estate IQ combines interactive mapping with smart property analytics to help you find the perfect rental property, fixer-upper, or forever home — all in one place.
-    </p>
-    <div class="about-features">
-      <div class="about-feature">
-        <span class="about-feature-icon">&#9678;</span>
-        <div class="about-feature-title">Map-First Search</div>
-        <p class="about-feature-desc">Click anywhere on the map to discover properties. Visual search meets real-time data.</p>
-      </div>
-      <div class="about-feature">
-        <span class="about-feature-icon">&#9733;</span>
-        <div class="about-feature-title">Investment Analytics</div>
-        <p class="about-feature-desc">Estimated ROI, cap rates, and flip potential calculated for every property.</p>
-      </div>
-      <div class="about-feature">
-        <span class="about-feature-icon">&#9881;</span>
-        <div class="about-feature-title">Smart Filters</div>
-        <p class="about-feature-desc">Filter by strategy — rentals, flips, or primary residences — and find exactly what fits your goals.</p>
-      </div>
+    <span class="ab-badge">Powered by Intelligence</span>
+    <h1 class="ab-h">Real estate investing, <em>simplified.</em></h1>
+    <p class="ab-p">Estate IQ combines interactive mapping with smart property analytics to help you find the perfect rental property, fixer-upper, or forever home — all in one place.</p>
+    <div class="ab-feats">
+      <div class="ab-feat"><span class="ab-feat-i">&#9678;</span><div class="ab-feat-t">Map-First Search</div><p class="ab-feat-d">Click anywhere on the map to discover properties. Visual search meets real-time data.</p></div>
+      <div class="ab-feat"><span class="ab-feat-i">&#9733;</span><div class="ab-feat-t">Investment Analytics</div><p class="ab-feat-d">ROI, cap rates, cash flow, and flip potential calculated for every property.</p></div>
+      <div class="ab-feat"><span class="ab-feat-i">&#9881;</span><div class="ab-feat-t">Smart Filters</div><p class="ab-feat-d">Filter by strategy — rentals, flips, or primary residences — and find exactly what fits.</p></div>
+      <div class="ab-feat"><span class="ab-feat-i">&#9878;</span><div class="ab-feat-t">BRRRR Calculator</div><p class="ab-feat-d">Run the numbers on any deal — mortgage, rental cash flow, flip profit, or BRRRR strategy.</p></div>
     </div>
   </div>
-
 </div>
 
-<!-- PROPERTY DETAIL MODAL -->
-<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
-  <div class="modal" id="modalContent">
-    <button class="modal-close" onclick="closeModalDirect()">&times;</button>
-    <img class="modal-img" id="modalImg" src="" alt="Property" />
+<!-- ===== PROPERTY DETAIL MODAL ===== -->
+<div class="modal-ov" id="modOv" onclick="if(event.target===this)modClose()">
+  <div class="modal" id="modBox">
+    <button class="modal-x" onclick="modClose()">&times;</button>
+    <img class="modal-img" id="modImg" src="" alt="Property">
+    <div class="modal-body" id="modBody"></div>
+  </div>
+</div>
+
+<!-- ===== CONTACT AGENT MODAL ===== -->
+<div class="modal-ov" id="caOv" onclick="if(event.target===this)caClose()">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-x" onclick="caClose()">&times;</button>
     <div class="modal-body">
-      <div class="modal-price" id="modalPrice"></div>
-      <div class="modal-address" id="modalAddress"></div>
-      <div class="modal-tags" id="modalTags"></div>
-      <div class="modal-stats-grid" id="modalStats"></div>
-      <p class="modal-desc" id="modalDesc"></p>
-      <div class="modal-actions">
-        <button class="modal-btn modal-btn-primary">Schedule Tour</button>
-        <button class="modal-btn modal-btn-secondary">Save Property</button>
+      <h2 style="font-family:var(--ff);font-size:1.5rem;font-weight:700;margin-bottom:.3rem">Contact an Agent</h2>
+      <p style="color:var(--txt2);font-size:.85rem;margin-bottom:1.2rem" id="caAddr"></p>
+      <form onsubmit="caSubmit(event)">
+        <div class="ca-row"><input class="calc-fi" placeholder="Full Name" required><input class="calc-fi" placeholder="Phone Number"></div>
+        <div class="calc-fg"><input class="calc-fi" placeholder="Email Address" type="email" required></div>
+        <div class="calc-fg"><textarea class="calc-fi" placeholder="I'm interested in this property..." rows="3" style="resize:vertical"></textarea></div>
+        <button type="submit" class="calc-compute">Send Message</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MORTGAGE QUICK MODAL ===== -->
+<div class="modal-ov" id="mqOv" onclick="if(event.target===this)mqClose()">
+  <div class="modal" style="max-width:520px">
+    <button class="modal-x" onclick="mqClose()">&times;</button>
+    <div class="modal-body">
+      <h2 style="font-family:var(--ff);font-size:1.5rem;font-weight:700;margin-bottom:.3rem">Mortgage Calculator</h2>
+      <p style="color:var(--txt2);font-size:.85rem;margin-bottom:1rem" id="mqAddr"></p>
+      <div class="mort-grid">
+        <div>
+          <div class="calc-fg"><label class="calc-fl">Down Payment (%)</label><input class="calc-fi" id="mq-down" type="number" value="20" oninput="mqCalc()"></div>
+          <div class="calc-fg"><label class="calc-fl">Interest Rate (%)</label><input class="calc-fi" id="mq-rate" type="number" value="6.5" step="0.1" oninput="mqCalc()"></div>
+          <div class="calc-fg"><label class="calc-fl">Term (years)</label><select class="filt-sel" id="mq-term" onchange="mqCalc()"><option value="30">30 years</option><option value="15">15 years</option></select></div>
+        </div>
+        <div class="mort-result">
+          <div class="mort-big" id="mq-pay">$0</div>
+          <div class="mort-big-lbl">Monthly Payment</div>
+          <div class="mort-breakdown" id="mq-break"></div>
+        </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- ===== COMPARE BAR ===== -->
+<div class="cmp-bar" id="cmpBar">
+  <span class="cmp-bar-txt">Comparing <strong id="cmpCt">0</strong> properties</span>
+  <div>
+    <button class="cmp-bar-btn" onclick="go('cmp-view')">View Comparison</button>
+    <button class="cmp-bar-clear" onclick="cmpClearAll()">Clear All</button>
+  </div>
+</div>
+
+<!-- ===== GOOGLE MAPS + FALLBACK ===== -->
+<script>
+// Google Maps API Key — replace with yours from https://console.cloud.google.com
+const GMAP_KEY = '';
+
+// Load map provider
+(function(){
+  if(GMAP_KEY){
+    const s=document.createElement('script');
+    s.src=`https://maps.googleapis.com/maps/api/js?key=${GMAP_KEY}&callback=initGMap`;
+    s.async=true;s.defer=true;document.head.appendChild(s);
+    window._useGoogle=true;
+  } else {
+    // Fallback: Leaflet
+    const c=document.createElement('link');c.rel='stylesheet';c.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(c);
+    const s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';s.onload=()=>{window._leafletReady=true};document.head.appendChild(s);
+  }
+})();
+</script>
 
 <script>
-// ============ PROPERTY DATA ============
-const PROPERTIES = [
-  {
-    id: 1,
-    lat: 40.7580, lng: -73.9855,
-    price: 875000, address: "245 W 44th St, New York, NY", zip: "10036",
-    beds: 2, baths: 2, sqft: 1100,
-    type: ["rental"],
-    img: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&h=400&fit=crop",
-    roi: "7.2%",
-    desc: "Stunning Midtown Manhattan condo in the heart of Times Square. Floor-to-ceiling windows, modern finishes, and doorman building. Excellent rental income potential with high occupancy rates year-round."
-  },
-  {
-    id: 2,
-    lat: 40.7282, lng: -73.7949,
-    price: 425000, address: "87-14 Midland Pkwy, Jamaica Estates, NY", zip: "11432",
-    beds: 4, baths: 2, sqft: 2200,
-    type: ["flip"],
-    img: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=600&h=400&fit=crop",
-    roi: "22% ARV",
-    desc: "Spacious colonial with original hardwood floors and solid bones. Needs cosmetic updates — new kitchen, bathrooms, and paint. ARV estimated at $550K. Prime flip candidate in desirable Jamaica Estates."
-  },
-  {
-    id: 3,
-    lat: 40.6892, lng: -74.0445,
-    price: 1250000, address: "15 Liberty St, Financial District, NY", zip: "10005",
-    beds: 3, baths: 2, sqft: 1650,
-    type: ["residential"],
-    img: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600&h=400&fit=crop",
-    roi: "—",
-    desc: "Luxury waterfront living with breathtaking views of the Statue of Liberty. Chef's kitchen with Sub-Zero appliances, marble bathrooms, private balcony. Full-service building with pool, gym, and concierge."
-  },
-  {
-    id: 4,
-    lat: 40.7484, lng: -73.9857,
-    price: 620000, address: "350 5th Ave, Midtown, NY", zip: "10001",
-    beds: 1, baths: 1, sqft: 780,
-    type: ["rental", "residential"],
-    img: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&h=400&fit=crop",
-    roi: "5.8%",
-    desc: "Iconic Empire State Building address. Sleek studio-to-one-bed conversion with high ceilings and city views. Perfect pied-à-terre or stable rental in one of the world's most recognized addresses."
-  },
-  {
-    id: 5,
-    lat: 40.6782, lng: -73.9442,
-    price: 525000, address: "312 Crown St, Crown Heights, Brooklyn", zip: "11225",
-    beds: 3, baths: 1, sqft: 1400,
-    type: ["flip"],
-    img: "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=600&h=400&fit=crop",
-    roi: "28% ARV",
-    desc: "Classic Brooklyn brownstone with incredible renovation potential. Original moldings and fireplace mantels. Gut renovation needed but comps in the area support $720K+ after rehab. A serious investor's dream."
-  },
-  {
-    id: 6,
-    lat: 40.7527, lng: -73.9772,
-    price: 2100000, address: "885 2nd Ave, Turtle Bay, NY", zip: "10017",
-    beds: 4, baths: 3, sqft: 2800,
-    type: ["residential"],
-    img: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&h=400&fit=crop",
-    roi: "—",
-    desc: "Penthouse duplex with wraparound terrace and panoramic East River views. Designer interiors, smart home system, wine cellar, and private elevator entry. The pinnacle of luxury Manhattan living."
-  },
-  {
-    id: 7,
-    lat: 40.7614, lng: -73.9776,
-    price: 385000, address: "157 E 57th St, Midtown East, NY", zip: "10022",
-    beds: 1, baths: 1, sqft: 650,
-    type: ["rental"],
-    img: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600&h=400&fit=crop",
-    roi: "6.4%",
-    desc: "Efficient one-bedroom near Central Park with consistent rental demand. Recently updated kitchen and bath. Low maintenance fees. Ideal for a first-time investor looking for steady cash flow."
-  },
-  {
-    id: 8,
-    lat: 40.6501, lng: -73.9496,
-    price: 299000, address: "1540 Flatbush Ave, Flatbush, Brooklyn", zip: "11210",
-    beds: 2, baths: 1, sqft: 950,
-    type: ["flip", "rental"],
-    img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&h=400&fit=crop",
-    roi: "18% ARV",
-    desc: "Affordable entry point in rapidly appreciating Flatbush. Needs moderate updates — new flooring, lighting, and kitchen refresh. Can flip or BRRRR for long-term rental income. Strong neighborhood trajectory."
-  },
-  {
-    id: 9,
-    lat: 40.7831, lng: -73.9712,
-    price: 1650000, address: "320 Central Park West, Upper West Side, NY", zip: "10024",
-    beds: 3, baths: 2, sqft: 1900,
-    type: ["residential"],
-    img: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=600&h=400&fit=crop",
-    roi: "—",
-    desc: "Pre-war elegance on Central Park West. Gracious rooms with 10-foot ceilings, herringbone floors, and original architectural details. Formal dining room, wood-burning fireplace, and Central Park views."
-  },
-  {
-    id: 10,
-    lat: 40.7128, lng: -74.0060,
-    price: 545000, address: "70 Pine St, Financial District, NY", zip: "10005",
-    beds: 2, baths: 2, sqft: 1050,
-    type: ["rental"],
-    img: "https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=600&h=400&fit=crop",
-    roi: "6.9%",
-    desc: "Art Deco landmark conversion in FiDi with hotel-style amenities. Two-bed, two-bath with open kitchen and in-unit laundry. Strong short-term and long-term rental performance. Doorman and roof deck included."
-  },
-  {
-    id: 11,
-    lat: 40.7061, lng: -73.9969,
-    price: 349000, address: "25 Market St, Chinatown, NY", zip: "10002",
-    beds: 1, baths: 1, sqft: 580,
-    type: ["flip"],
-    img: "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=600&h=400&fit=crop",
-    roi: "20% ARV",
-    desc: "Below-market one-bed in bustling Chinatown. Estate sale — needs full cosmetic renovation. Post-renovation comps at $430K+. Walk to subway, restaurants, and Lower Manhattan offices."
-  },
-  {
-    id: 12,
-    lat: 40.7411, lng: -73.9897,
-    price: 780000, address: "225 E 19th St, Gramercy, NY", zip: "10003",
-    beds: 2, baths: 2, sqft: 1250,
-    type: ["residential", "rental"],
-    img: "https://images.unsplash.com/photo-1600566753086-00f18f6b7843?w=600&h=400&fit=crop",
-    roi: "5.1%",
-    desc: "Gramercy Park charm with coveted park key access. Sun-drenched two-bedroom with exposed brick, high ceilings, and a renovated chef's kitchen. Live in it or rent it — Gramercy always delivers."
-  }
+// ===== PROPERTY DATA =====
+const P = [
+  {id:1,lat:40.7580,lng:-73.9855,price:875000,addr:"245 W 44th St, New York, NY",zip:"10036",beds:2,baths:2,sqft:1100,type:["rental"],img:"https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&h=400&fit=crop",roi:"7.2%",featured:true,walk:92,school:7,crime:3,appr:4.2,desc:"Stunning Midtown Manhattan condo in the heart of Times Square. Floor-to-ceiling windows, modern finishes, and doorman building. Excellent rental income potential with high occupancy rates year-round."},
+  {id:2,lat:40.7282,lng:-73.7949,price:425000,addr:"87-14 Midland Pkwy, Jamaica Estates, NY",zip:"11432",beds:4,baths:2,sqft:2200,type:["flip"],img:"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=600&h=400&fit=crop",roi:"22% ARV",featured:false,walk:55,school:6,crime:4,appr:5.8,desc:"Spacious colonial with original hardwood floors. Needs cosmetic updates — kitchen, bathrooms, and paint. ARV estimated at $550K. Prime flip candidate in desirable Jamaica Estates."},
+  {id:3,lat:40.6892,lng:-74.0445,price:1250000,addr:"15 Liberty St, Financial District, NY",zip:"10005",beds:3,baths:2,sqft:1650,type:["residential"],img:"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600&h=400&fit=crop",roi:"—",featured:true,walk:97,school:8,crime:2,appr:3.1,desc:"Luxury waterfront living with breathtaking Statue of Liberty views. Chef's kitchen with Sub-Zero appliances, marble bathrooms, private balcony. Full-service building with pool, gym, and concierge."},
+  {id:4,lat:40.7484,lng:-73.9857,price:620000,addr:"350 5th Ave, Midtown, NY",zip:"10001",beds:1,baths:1,sqft:780,type:["rental","residential"],img:"https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&h=400&fit=crop",roi:"5.8%",featured:false,walk:98,school:7,crime:2,appr:3.5,desc:"Iconic Empire State Building address. Sleek one-bed with high ceilings and city views. Perfect pied-à-terre or stable rental in one of the world's most recognized addresses."},
+  {id:5,lat:40.6782,lng:-73.9442,price:525000,addr:"312 Crown St, Crown Heights, Brooklyn",zip:"11225",beds:3,baths:1,sqft:1400,type:["flip"],img:"https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=600&h=400&fit=crop",roi:"28% ARV",featured:false,walk:88,school:5,crime:5,appr:7.2,desc:"Classic Brooklyn brownstone with incredible renovation potential. Original moldings and mantels. Gut renovation needed but comps support $720K+ after rehab. A serious investor's dream."},
+  {id:6,lat:40.7527,lng:-73.9772,price:2100000,addr:"885 2nd Ave, Turtle Bay, NY",zip:"10017",beds:4,baths:3,sqft:2800,type:["residential"],img:"https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&h=400&fit=crop",roi:"—",featured:true,walk:95,school:9,crime:1,appr:2.8,desc:"Penthouse duplex with wraparound terrace and panoramic East River views. Designer interiors, smart home system, wine cellar, and private elevator entry. The pinnacle of luxury Manhattan living."},
+  {id:7,lat:40.7614,lng:-73.9776,price:385000,addr:"157 E 57th St, Midtown East, NY",zip:"10022",beds:1,baths:1,sqft:650,type:["rental"],img:"https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600&h=400&fit=crop",roi:"6.4%",featured:false,walk:96,school:8,crime:2,appr:3.3,desc:"Efficient one-bedroom near Central Park with consistent rental demand. Recently updated kitchen and bath. Low maintenance. Ideal first-time investor property for steady cash flow."},
+  {id:8,lat:40.6501,lng:-73.9496,price:299000,addr:"1540 Flatbush Ave, Flatbush, Brooklyn",zip:"11210",beds:2,baths:1,sqft:950,type:["flip","rental"],img:"https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&h=400&fit=crop",roi:"18% ARV",featured:false,walk:82,school:5,crime:5,appr:6.5,desc:"Affordable entry point in rapidly appreciating Flatbush. Needs moderate updates — flooring, lighting, kitchen refresh. Can flip or BRRRR for long-term rental income. Strong neighborhood trajectory."},
+  {id:9,lat:40.7831,lng:-73.9712,price:1650000,addr:"320 Central Park West, Upper West Side, NY",zip:"10024",beds:3,baths:2,sqft:1900,type:["residential"],img:"https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=600&h=400&fit=crop",roi:"—",featured:false,walk:94,school:9,crime:1,appr:3.0,desc:"Pre-war elegance on Central Park West. 10-foot ceilings, herringbone floors, original architectural details. Formal dining room, wood-burning fireplace, and Central Park views."},
+  {id:10,lat:40.7128,lng:-74.0060,price:545000,addr:"70 Pine St, Financial District, NY",zip:"10005",beds:2,baths:2,sqft:1050,type:["rental"],img:"https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=600&h=400&fit=crop",roi:"6.9%",featured:false,walk:96,school:7,crime:2,appr:3.8,desc:"Art Deco landmark conversion in FiDi with hotel-style amenities. Two-bed, two-bath with open kitchen and in-unit laundry. Strong rental performance. Doorman and roof deck included."},
+  {id:11,lat:40.7061,lng:-73.9969,price:349000,addr:"25 Market St, Chinatown, NY",zip:"10002",beds:1,baths:1,sqft:580,type:["flip"],img:"https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=600&h=400&fit=crop",roi:"20% ARV",featured:false,walk:97,school:6,crime:4,appr:4.5,desc:"Below-market one-bed in bustling Chinatown. Estate sale — needs full cosmetic renovation. Post-renovation comps at $430K+. Walk to subway, restaurants, and Lower Manhattan offices."},
+  {id:12,lat:40.7411,lng:-73.9897,price:780000,addr:"225 E 19th St, Gramercy, NY",zip:"10003",beds:2,baths:2,sqft:1250,type:["residential","rental"],img:"https://images.unsplash.com/photo-1600566753086-00f18f6b7843?w=600&h=400&fit=crop",roi:"5.1%",featured:false,walk:95,school:8,crime:2,appr:3.6,desc:"Gramercy Park charm with coveted park key access. Sun-drenched two-bedroom with exposed brick, high ceilings, and a renovated chef's kitchen. Live in it or rent it — Gramercy always delivers."}
 ];
 
-// ============ STATE ============
-let map;
-let markers = [];
-let activeFilters = { type: 'all', priceMin: 0, priceMax: Infinity, beds: 0 };
-let listingFilter = 'all';
-let savedProperties = new Set();
+// ===== STATE =====
+let map,markers=[],gMarkers=[],infoWin;
+let filt={type:'all',pMin:0,pMax:Infinity,beds:0};
+let activeZip='',listFilt='all';
+let saved=JSON.parse(localStorage.getItem('eiq_saved')||'[]');
+let compared=JSON.parse(localStorage.getItem('eiq_cmp')||'[]');
+let mqPropId=null,caPropId=null;
 
-// ============ INTRO ANIMATION ============
-function initIntro() {
-  const canvas = document.getElementById('grid-canvas');
-  const ctx = canvas.getContext('2d');
-  let w, h, cols, rows, cellSize;
-  let particles = [];
-  let frame = 0;
-  let startTime = Date.now();
-
-  function resize() {
-    w = canvas.width = window.innerWidth;
-    h = canvas.height = window.innerHeight;
-    cellSize = Math.max(30, Math.min(60, w / 25));
-    cols = Math.ceil(w / cellSize) + 2;
-    rows = Math.ceil(h / cellSize) + 2;
-  }
-
-  resize();
-  window.addEventListener('resize', resize);
-
-  // Create flowing particles
-  for (let i = 0; i < 40; i++) {
-    particles.push({
-      x: Math.random() * w,
-      y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 1.5,
-      vy: (Math.random() - 0.5) * 1.5,
-      radius: Math.random() * 2 + 1,
-      alpha: Math.random() * 0.5 + 0.2
-    });
-  }
-
-  function draw() {
-    const elapsed = Date.now() - startTime;
-    ctx.clearRect(0, 0, w, h);
-
-    // Animated grid
-    const time = elapsed * 0.001;
-    const cx = w / 2;
-    const cy = h / 2;
-
-    for (let i = 0; i < cols; i++) {
-      for (let j = 0; j < rows; j++) {
-        const x = i * cellSize;
-        const y = j * cellSize;
-        const dx = x - cx;
-        const dy = y - cy;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const maxDist = Math.sqrt(cx * cx + cy * cy);
-        const norm = dist / maxDist;
-
-        // Wave effect
-        const wave = Math.sin(dist * 0.008 - time * 2) * 0.5 + 0.5;
-        const pulse = Math.sin(time * 1.5) * 0.15 + 0.85;
-
-        const alpha = (1 - norm * 0.7) * wave * 0.25 * pulse;
-        const size = 1.5 + wave * 1.5;
-
-        ctx.beginPath();
-        ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(201, 168, 76, ${alpha})`;
-        ctx.fill();
-
-        // Grid lines (subtle)
-        if (i < cols - 1) {
-          const nextAlpha = alpha * 0.15;
-          ctx.beginPath();
-          ctx.moveTo(x, y);
-          ctx.lineTo(x + cellSize, y);
-          ctx.strokeStyle = `rgba(201, 168, 76, ${nextAlpha})`;
-          ctx.lineWidth = 0.5;
-          ctx.stroke();
-        }
-        if (j < rows - 1) {
-          const nextAlpha = alpha * 0.15;
-          ctx.beginPath();
-          ctx.moveTo(x, y);
-          ctx.lineTo(x, y + cellSize);
-          ctx.strokeStyle = `rgba(201, 168, 76, ${nextAlpha})`;
-          ctx.lineWidth = 0.5;
-          ctx.stroke();
-        }
-      }
+// ===== INTRO =====
+function initIntro(){
+  const cv=document.getElementById('grid-cv'),ctx=cv.getContext('2d');
+  let w,h,cols,rows,cs,pts=[];
+  function resize(){w=cv.width=innerWidth;h=cv.height=innerHeight;cs=Math.max(30,Math.min(60,w/25));cols=Math.ceil(w/cs)+2;rows=Math.ceil(h/cs)+2}
+  resize();addEventListener('resize',resize);
+  for(let i=0;i<40;i++)pts.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,vx:(Math.random()-.5)*1.5,vy:(Math.random()-.5)*1.5,r:Math.random()*2+1,a:Math.random()*.5+.2});
+  const t0=Date.now();let fr=0;
+  function draw(){
+    const el=(Date.now()-t0)*.001;ctx.clearRect(0,0,w,h);
+    const cx=w/2,cy=h/2;
+    for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){
+      const x=i*cs,y=j*cs,d=Math.sqrt((x-cx)**2+(y-cy)**2),n=d/Math.sqrt(cx*cx+cy*cy),wv=Math.sin(d*.008-el*2)*.5+.5,p=Math.sin(el*1.5)*.15+.85,a=(1-n*.7)*wv*.25*p,sz=1.5+wv*1.5;
+      ctx.beginPath();ctx.arc(x,y,sz,0,Math.PI*2);ctx.fillStyle=`rgba(201,168,76,${a})`;ctx.fill();
+      if(i<cols-1){ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+cs,y);ctx.strokeStyle=`rgba(201,168,76,${a*.15})`;ctx.lineWidth=.5;ctx.stroke()}
+      if(j<rows-1){ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y+cs);ctx.strokeStyle=`rgba(201,168,76,${a*.15})`;ctx.lineWidth=.5;ctx.stroke()}
     }
-
-    // Floating particles
-    particles.forEach(p => {
-      p.x += p.vx;
-      p.y += p.vy;
-      if (p.x < 0) p.x = w;
-      if (p.x > w) p.x = 0;
-      if (p.y < 0) p.y = h;
-      if (p.y > h) p.y = 0;
-
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(201, 168, 76, ${p.alpha * 0.6})`;
-      ctx.fill();
-    });
-
-    // Connect nearby particles
-    for (let i = 0; i < particles.length; i++) {
-      for (let j = i + 1; j < particles.length; j++) {
-        const dx = particles[i].x - particles[j].x;
-        const dy = particles[i].y - particles[j].y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 150) {
-          ctx.beginPath();
-          ctx.moveTo(particles[i].x, particles[i].y);
-          ctx.lineTo(particles[j].x, particles[j].y);
-          ctx.strokeStyle = `rgba(201, 168, 76, ${(1 - dist / 150) * 0.15})`;
-          ctx.lineWidth = 0.5;
-          ctx.stroke();
-        }
-      }
-    }
-
-    // Radial glow at center
-    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, 300);
-    gradient.addColorStop(0, 'rgba(201, 168, 76, 0.06)');
-    gradient.addColorStop(1, 'rgba(201, 168, 76, 0)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, w, h);
-
-    frame = requestAnimationFrame(draw);
+    pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=w;if(p.x>w)p.x=0;if(p.y<0)p.y=h;if(p.y>h)p.y=0;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`rgba(201,168,76,${p.a*.6})`;ctx.fill()});
+    for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const d=Math.sqrt((pts[i].x-pts[j].x)**2+(pts[i].y-pts[j].y)**2);if(d<150){ctx.beginPath();ctx.moveTo(pts[i].x,pts[i].y);ctx.lineTo(pts[j].x,pts[j].y);ctx.strokeStyle=`rgba(201,168,76,${(1-d/150)*.15})`;ctx.lineWidth=.5;ctx.stroke()}}
+    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,300);g.addColorStop(0,'rgba(201,168,76,.06)');g.addColorStop(1,'rgba(201,168,76,0)');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    fr=requestAnimationFrame(draw);
   }
-
   draw();
-
-  // Transition to sign-in after 3.5 seconds
-  setTimeout(() => {
-    const overlay = document.getElementById('intro-overlay');
-    overlay.classList.add('fade-out');
-    document.getElementById('signin-page').classList.add('visible');
-
-    setTimeout(() => {
-      cancelAnimationFrame(frame);
-      overlay.style.display = 'none';
-    }, 900);
-  }, 3500);
+  setTimeout(()=>{
+    document.getElementById('intro').classList.add('out');
+    document.getElementById('signin').classList.add('vis');
+    setTimeout(()=>{cancelAnimationFrame(fr);document.getElementById('intro').style.display='none'},900);
+  },3500);
 }
 
-// ============ SIGN IN ============
-function handleSignIn(e) {
+// ===== SIGN IN =====
+function doSignIn(e){
   e.preventDefault();
-  const signinPage = document.getElementById('signin-page');
-  signinPage.classList.add('exit');
-
-  // Show navbar and app with map entrance animation
-  setTimeout(() => {
-    document.getElementById('navbar').classList.add('visible');
-    document.getElementById('app').classList.add('visible');
-    document.getElementById('app').classList.add('map-entrance');
-    initMap();
-  }, 400);
-
-  setTimeout(() => {
-    signinPage.style.display = 'none';
-    document.getElementById('app').classList.remove('map-entrance');
-  }, 1400);
+  const si=document.getElementById('signin');si.classList.add('exit');
+  setTimeout(()=>{document.getElementById('nav').classList.add('vis');document.getElementById('app').classList.add('vis');document.getElementById('app').classList.add('map-in');initMap()},400);
+  setTimeout(()=>{si.style.display='none';document.getElementById('app').classList.remove('map-in')},1400);
 }
 
-// ============ MAP ============
-function initMap() {
-  map = L.map('map', {
-    center: [40.7380, -73.9800],
-    zoom: 12,
-    zoomControl: true,
-    attributionControl: false
-  });
-
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: ''
-  }).addTo(map);
-
-  renderMarkers(PROPERTIES);
-  setTimeout(() => map.invalidateSize(), 100);
+// ===== MAP =====
+function initMap(){
+  if(window._useGoogle) return; // Google callback handles it
+  // Wait for Leaflet
+  if(!window._leafletReady){setTimeout(initMap,100);return}
+  map=L.map('gmap',{center:[40.738,-73.98],zoom:12,zoomControl:true,attributionControl:false});
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+  // Dark filter
+  const pane=document.querySelector('.leaflet-tile-pane');if(pane)pane.style.filter='brightness(0.7) saturate(0.3) contrast(1.1)';
+  renderMarkers(P);
+  setTimeout(()=>map.invalidateSize(),100);
 }
 
-function createMarkerIcon() {
-  return L.divIcon({
-    className: '',
-    html: '<div class="custom-marker"></div>',
-    iconSize: [36, 36],
-    iconAnchor: [18, 36],
-    popupAnchor: [0, -36]
-  });
-}
+// Google Maps init
+window.initGMap=function(){
+  const styles=[{elementType:'geometry',stylers:[{color:'#1a1a2e'}]},{elementType:'labels.text.stroke',stylers:[{color:'#1a1a2e'}]},{elementType:'labels.text.fill',stylers:[{color:'#8a8a8a'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#2a2a3e'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#0e0e1a'}]},{featureType:'poi',stylers:[{visibility:'off'}]}];
+  map=new google.maps.Map(document.getElementById('gmap'),{center:{lat:40.738,lng:-73.98},zoom:12,styles:styles,disableDefaultUI:false,zoomControl:true,mapTypeControl:false,streetViewControl:false,fullscreenControl:false});
+  infoWin=new google.maps.InfoWindow();
+  renderMarkers(P);
+};
 
-function renderMarkers(properties) {
-  // Clear existing
-  markers.forEach(m => map.removeLayer(m));
-  markers = [];
-
-  properties.forEach(prop => {
-    const marker = L.marker([prop.lat, prop.lng], { icon: createMarkerIcon() });
-
-    const tagsHtml = prop.type.map(t => {
-      const cls = t === 'rental' ? 'tag-rental' : t === 'flip' ? 'tag-flip' : 'tag-residential';
-      const label = t === 'rental' ? 'Rental' : t === 'flip' ? 'Flip Opportunity' : 'Primary Residence';
-      return `<span class="popup-tag ${cls}">${label}</span>`;
-    }).join('');
-
-    const popupHtml = `
-      <div class="popup-card" onclick="openModal(${prop.id})" style="cursor:pointer">
-        <img class="popup-img" src="${prop.img}" alt="Property" loading="lazy"/>
-        <div class="popup-body">
-          <div class="popup-price">$${prop.price.toLocaleString()}</div>
-          <div class="popup-address">${prop.address}</div>
-          <div class="popup-stats">
-            <div class="popup-stat"><span>${prop.beds}</span> bed</div>
-            <div class="popup-stat"><span>${prop.baths}</span> bath</div>
-            <div class="popup-stat"><span>${prop.sqft.toLocaleString()}</span> sqft</div>
-          </div>
-          <div class="popup-tags">${tagsHtml}</div>
-        </div>
-      </div>
-    `;
-
-    marker.bindPopup(popupHtml, { maxWidth: 300, minWidth: 280, closeButton: true });
-    marker.addTo(map);
-    markers.push(marker);
-  });
-
-  document.getElementById('visibleCount').textContent = properties.length;
-}
-
-// ============ FILTERS ============
-function toggleTypeChip(el) {
-  const type = el.dataset.type;
-  const chips = el.parentElement.querySelectorAll('.filter-chip');
-
-  if (type === 'all') {
-    chips.forEach(c => c.classList.remove('active'));
-    el.classList.add('active');
-    activeFilters.type = 'all';
-  } else {
-    el.parentElement.querySelector('[data-type="all"]').classList.remove('active');
-    el.classList.toggle('active');
-
-    const actives = [...el.parentElement.querySelectorAll('.filter-chip.active')]
-      .map(c => c.dataset.type)
-      .filter(t => t !== 'all');
-
-    if (actives.length === 0) {
-      el.parentElement.querySelector('[data-type="all"]').classList.add('active');
-      activeFilters.type = 'all';
-    } else {
-      activeFilters.type = actives;
-    }
+function mkIcon(){
+  if(window._useGoogle){
+    return{path:google.maps.SymbolPath.CIRCLE,fillColor:'#c9a84c',fillOpacity:1,strokeColor:'#0a0a0c',strokeWeight:3,scale:10};
   }
+  return L.divIcon({className:'',html:'<div style="width:32px;height:32px;background:var(--gold);border:3px solid var(--bg);border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 12px rgba(0,0,0,.5),0 0 20px rgba(201,168,76,.25);position:relative"><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;background:var(--bg);border-radius:50%"></div></div>',iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-32]});
 }
 
-function applyFilters() {
-  const minVal = document.getElementById('priceMin').value.replace(/[^0-9]/g, '');
-  const maxVal = document.getElementById('priceMax').value.replace(/[^0-9]/g, '');
-  activeFilters.priceMin = minVal ? parseInt(minVal) : 0;
-  activeFilters.priceMax = maxVal ? parseInt(maxVal) : Infinity;
-  activeFilters.beds = parseInt(document.getElementById('bedsFilter').value) || 0;
+function renderMarkers(props){
+  if(window._useGoogle){
+    gMarkers.forEach(m=>m.setMap(null));gMarkers=[];
+    props.forEach(p=>{
+      const m=new google.maps.Marker({position:{lat:p.lat,lng:p.lng},map:map,icon:mkIcon(),title:p.addr});
+      m.addListener('click',()=>{openMod(p.id)});
+      gMarkers.push(m);
+    });
+  } else {
+    markers.forEach(m=>map.removeLayer(m));markers=[];
+    props.forEach(p=>{
+      const m=L.marker([p.lat,p.lng],{icon:mkIcon()});
+      m.on('click',()=>openMod(p.id));
+      m.addTo(map);markers.push(m);
+    });
+  }
+  document.getElementById('visCt').textContent=props.length;
+}
 
-  const filtered = PROPERTIES.filter(p => {
-    // Zip filter
-    if (activeZip && p.zip !== activeZip) return false;
-    // Type filter
-    if (activeFilters.type !== 'all') {
-      const types = Array.isArray(activeFilters.type) ? activeFilters.type : [activeFilters.type];
-      if (!types.some(t => p.type.includes(t))) return false;
-    }
-    // Price
-    if (p.price < activeFilters.priceMin || p.price > activeFilters.priceMax) return false;
-    // Beds
-    if (activeFilters.beds && p.beds < activeFilters.beds) return false;
+// ===== FILTERS =====
+function fChip(el){
+  const t=el.dataset.t,chips=el.parentElement.querySelectorAll('.filt-chip');
+  if(t==='all'){chips.forEach(c=>c.classList.remove('act'));el.classList.add('act');filt.type='all'}
+  else{el.parentElement.querySelector('[data-t="all"]').classList.remove('act');el.classList.toggle('act');const a=[...el.parentElement.querySelectorAll('.filt-chip.act')].map(c=>c.dataset.t).filter(t=>t!=='all');if(!a.length){el.parentElement.querySelector('[data-t="all"]').classList.add('act');filt.type='all'}else filt.type=a}
+}
+function applyFilters(){
+  const mn=document.getElementById('fMin').value.replace(/\D/g,''),mx=document.getElementById('fMax').value.replace(/\D/g,'');
+  filt.pMin=mn?+mn:0;filt.pMax=mx?+mx:Infinity;filt.beds=+document.getElementById('fBeds').value||0;
+  const f=P.filter(p=>{
+    if(activeZip&&p.zip!==activeZip)return false;
+    if(filt.type!=='all'){const ts=Array.isArray(filt.type)?filt.type:[filt.type];if(!ts.some(t=>p.type.includes(t)))return false}
+    if(p.price<filt.pMin||p.price>filt.pMax)return false;
+    if(filt.beds&&p.beds<filt.beds)return false;
     return true;
   });
-
-  renderMarkers(filtered);
+  renderMarkers(f);
 }
+function filtClose(){document.getElementById('filtPanel').classList.add('hide');document.getElementById('filtTog').classList.remove('hide')}
+function filtOpen(){document.getElementById('filtPanel').classList.remove('hide');document.getElementById('filtTog').classList.add('hide')}
 
-function closeFilters() {
-  document.getElementById('mapFilters').classList.add('collapsed');
-  document.getElementById('filterToggle').classList.remove('hidden');
-}
-
-function openFilters() {
-  document.getElementById('mapFilters').classList.remove('collapsed');
-  document.getElementById('filterToggle').classList.add('hidden');
-}
-
-// ============ ZIP CODE SEARCH ============
-let activeZip = '';
-
-function onZipInput(el) {
-  // Only allow digits
-  el.value = el.value.replace(/[^0-9]/g, '');
-  const clearBtn = document.getElementById('zipClear');
-  if (el.value.length > 0) {
-    clearBtn.classList.add('visible');
+// ===== ZIP SEARCH =====
+function zipTyping(el){el.value=el.value.replace(/\D/g,'');const x=document.getElementById('zipX');el.value.length?x.classList.add('vis'):x.classList.remove('vis');if(!el.value&&activeZip)zipClear()}
+function zipSearch(){
+  const z=document.getElementById('zipIn').value.trim();if(!z)return;activeZip=z;
+  const m=P.filter(p=>p.zip===z);
+  if(m.length){
+    if(window._useGoogle){const b=new google.maps.LatLngBounds();m.forEach(p=>b.extend({lat:p.lat,lng:p.lng}));map.fitBounds(b,{top:80,bottom:60,left:60,right:60})}
+    else{const b=L.latLngBounds(m.map(p=>[p.lat,p.lng]));map.flyToBounds(b.pad(0.3),{duration:1.2})}
+    renderMarkers(m);
   } else {
-    clearBtn.classList.remove('visible');
-    if (activeZip) clearZipSearch();
-  }
-}
-
-function searchByZip() {
-  const zip = document.getElementById('zipInput').value.trim();
-  if (!zip) return;
-
-  activeZip = zip;
-  const matched = PROPERTIES.filter(p => p.zip === zip);
-
-  if (matched.length > 0) {
-    // Zoom to the area of matched properties
-    const lats = matched.map(p => p.lat);
-    const lngs = matched.map(p => p.lng);
-    const bounds = L.latLngBounds(
-      [Math.min(...lats) - 0.005, Math.min(...lngs) - 0.005],
-      [Math.max(...lats) + 0.005, Math.max(...lngs) + 0.005]
-    );
-    map.flyToBounds(bounds, { padding: [60, 60], duration: 1.2 });
-    renderMarkers(matched);
-  } else {
-    // No properties in our data — use Nominatim to geocode the zip and fly there
     renderMarkers([]);
-    fetch(`https://nominatim.openstreetmap.org/search?postalcode=${zip}&country=US&format=json&limit=1`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.length > 0) {
-          map.flyTo([parseFloat(data[0].lat), parseFloat(data[0].lon)], 14, { duration: 1.2 });
-        }
-      })
-      .catch(() => {});
+    fetch(`https://nominatim.openstreetmap.org/search?postalcode=${z}&country=US&format=json&limit=1`).then(r=>r.json()).then(d=>{if(d.length){if(window._useGoogle)map.panTo({lat:+d[0].lat,lng:+d[0].lon});else map.flyTo([+d[0].lat,+d[0].lon],14,{duration:1.2})}}).catch(()=>{});
   }
 }
+function zipClear(){activeZip='';document.getElementById('zipIn').value='';document.getElementById('zipX').classList.remove('vis');renderMarkers(P);if(window._useGoogle)map.panTo({lat:40.738,lng:-73.98});else map.flyTo([40.738,-73.98],12,{duration:1})}
 
-function clearZipSearch() {
-  activeZip = '';
-  document.getElementById('zipInput').value = '';
-  document.getElementById('zipClear').classList.remove('visible');
-  renderMarkers(PROPERTIES);
-  map.flyTo([40.7380, -73.9800], 12, { duration: 1 });
-}
-
-// ============ LISTINGS ============
-function renderListings(filter = 'all') {
-  const grid = document.getElementById('listingsGrid');
-  const filtered = filter === 'all'
-    ? PROPERTIES
-    : PROPERTIES.filter(p => p.type.includes(filter));
-
-  if (filtered.length === 0) {
-    grid.innerHTML = `
-      <div class="no-results">
-        <div class="no-results-icon">&#9901;</div>
-        <div class="no-results-text">No properties match your filters</div>
-      </div>`;
-    return;
-  }
-
-  grid.innerHTML = filtered.map((p, i) => {
-    const tagsHtml = p.type.map(t => {
-      const cls = t === 'rental' ? 'tag-rental' : t === 'flip' ? 'tag-flip' : 'tag-residential';
-      const label = t === 'rental' ? 'Rental' : t === 'flip' ? 'Flip' : 'Residence';
-      return `<span class="card-tag ${cls}">${label}</span>`;
-    }).join('');
-
-    const isSaved = savedProperties.has(p.id);
-
-    return `
-      <div class="property-card animate-in" style="animation-delay:${i * 0.07}s" onclick="openModal(${p.id})">
-        <div class="card-img-wrap">
-          <img class="card-img" src="${p.img}" alt="${p.address}" loading="lazy"/>
-          <div class="card-tags">${tagsHtml}</div>
-          <button class="card-save ${isSaved ? 'saved' : ''}" onclick="event.stopPropagation(); toggleSave(${p.id}, this)">
-            ${isSaved ? '&#9829;' : '&#9825;'}
-          </button>
-        </div>
-        <div class="card-body">
-          <div class="card-price">$${p.price.toLocaleString()}</div>
-          <div class="card-address">${p.address}</div>
-          <div class="card-stats">
-            <div class="card-stat"><span class="card-stat-val">${p.beds}</span>Beds</div>
-            <div class="card-stat"><span class="card-stat-val">${p.baths}</span>Baths</div>
-            <div class="card-stat"><span class="card-stat-val">${p.sqft.toLocaleString()}</span>Sqft</div>
-          </div>
-        </div>
-        <div class="card-footer">
-          <div class="card-roi"><span>Est. ROI </span>${p.roi}</div>
-          <button class="card-detail-btn" onclick="event.stopPropagation(); openModal(${p.id})">Details</button>
-        </div>
+// ===== PROPERTY MODAL =====
+function openMod(id){
+  const p=P.find(x=>x.id===id);if(!p)return;
+  document.getElementById('modImg').src=p.img;
+  const isSaved=saved.includes(id),isCmp=compared.includes(id);
+  const tagH=p.type.map(t=>`<span class="m-tag ${t==='rental'?'t-r':t==='flip'?'t-f':'t-p'}">${t==='rental'?'Rental':t==='flip'?'Flip Opportunity':'Primary Residence'}</span>`).join('');
+  const hoodColors={walk:'#4ecb71',school:'#4a9eff',crime:'#e85d5d',appr:'#a478e8'};
+  document.getElementById('modBody').innerHTML=`
+    <div class="modal-price">$${p.price.toLocaleString()}</div>
+    <div class="modal-addr">${p.addr}</div>
+    <div class="modal-zip">ZIP: ${p.zip}</div>
+    <div class="modal-tags">${tagH}</div>
+    <div class="modal-stats">
+      <div class="ms-box"><div class="ms-val">${p.beds}</div><div class="ms-lbl">Beds</div></div>
+      <div class="ms-box"><div class="ms-val">${p.baths}</div><div class="ms-lbl">Baths</div></div>
+      <div class="ms-box"><div class="ms-val">${p.sqft.toLocaleString()}</div><div class="ms-lbl">Sq Ft</div></div>
+      <div class="ms-box"><div class="ms-val">${p.roi}</div><div class="ms-lbl">Est. ROI</div></div>
+    </div>
+    <div class="modal-hood">
+      <h4>Neighborhood Analytics</h4>
+      <div class="hood-bars">
+        <div class="hood-bar"><span class="hood-bar-lbl">Walkability</span><div class="hood-bar-track"><div class="hood-bar-fill" style="width:${p.walk}%;background:${hoodColors.walk}"></div></div><span class="hood-bar-val" style="color:${hoodColors.walk}">${p.walk}</span></div>
+        <div class="hood-bar"><span class="hood-bar-lbl">Schools</span><div class="hood-bar-track"><div class="hood-bar-fill" style="width:${p.school*10}%;background:${hoodColors.school}"></div></div><span class="hood-bar-val" style="color:${hoodColors.school}">${p.school}/10</span></div>
+        <div class="hood-bar"><span class="hood-bar-lbl">Safety</span><div class="hood-bar-track"><div class="hood-bar-fill" style="width:${(10-p.crime)*10}%;background:${p.crime<=3?hoodColors.walk:p.crime<=5?'#f59e0b':hoodColors.crime}"></div></div><span class="hood-bar-val" style="color:${p.crime<=3?hoodColors.walk:p.crime<=5?'#f59e0b':hoodColors.crime}">${10-p.crime}/10</span></div>
+        <div class="hood-bar"><span class="hood-bar-lbl">Appreciation</span><div class="hood-bar-track"><div class="hood-bar-fill" style="width:${Math.min(p.appr*10,100)}%;background:${hoodColors.appr}"></div></div><span class="hood-bar-val" style="color:${hoodColors.appr}">${p.appr}%</span></div>
       </div>
-    `;
+    </div>
+    <p class="modal-desc">${p.desc}</p>
+    <div class="modal-acts">
+      <button class="m-btn m-btn-gold" onclick="openCA(${p.id})">Contact Agent</button>
+      <button class="m-btn m-btn-green" onclick="openMQ(${p.id})">Mortgage Calc</button>
+      <button class="m-btn m-btn-out" onclick="toggleSave(${p.id});openMod(${p.id})">${isSaved?'&#9829; Saved':'&#9825; Save'}</button>
+      <button class="m-btn m-btn-out" onclick="toggleCmp(${p.id});openMod(${p.id})">${isCmp?'&#10003; Comparing':'Compare'}</button>
+    </div>`;
+  document.getElementById('modOv').classList.add('open');document.body.style.overflow='hidden';
+}
+function modClose(){document.getElementById('modOv').classList.remove('open');document.body.style.overflow=''}
+
+// ===== CONTACT AGENT =====
+function openCA(id){const p=P.find(x=>x.id===id);caPropId=id;document.getElementById('caAddr').textContent=p.addr;document.getElementById('caOv').classList.add('open')}
+function caClose(){document.getElementById('caOv').classList.remove('open')}
+function caSubmit(e){e.preventDefault();alert('Message sent! An agent will contact you shortly.');caClose()}
+
+// ===== MORTGAGE QUICK CALC =====
+function openMQ(id){const p=P.find(x=>x.id===id);mqPropId=id;document.getElementById('mqAddr').textContent=`$${p.price.toLocaleString()} — ${p.addr}`;document.getElementById('mqOv').classList.add('open');mqCalc()}
+function mqClose(){document.getElementById('mqOv').classList.remove('open')}
+function mqCalc(){
+  const p=P.find(x=>x.id===mqPropId);if(!p)return;
+  const dp=+document.getElementById('mq-down').value/100,r=(+document.getElementById('mq-rate').value/100)/12,n=+document.getElementById('mq-term').value*12;
+  const loan=p.price*(1-dp),pi=r?loan*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1):loan/n;
+  document.getElementById('mq-pay').textContent='$'+Math.round(pi).toLocaleString();
+  document.getElementById('mq-break').innerHTML=`
+    <div class="cr-row"><span class="cr-label">Loan Amount</span><span class="cr-val">$${Math.round(loan).toLocaleString()}</span></div>
+    <div class="cr-row"><span class="cr-label">Down Payment</span><span class="cr-val">$${Math.round(p.price*dp).toLocaleString()}</span></div>
+    <div class="cr-row"><span class="cr-label">Total Interest</span><span class="cr-val">$${Math.round(pi*n-loan).toLocaleString()}</span></div>`;
+}
+
+// ===== SAVE & COMPARE =====
+function toggleSave(id){const i=saved.indexOf(id);if(i>=0)saved.splice(i,1);else saved.push(id);localStorage.setItem('eiq_saved',JSON.stringify(saved));updSavedBadge()}
+function toggleCmp(id){const i=compared.indexOf(id);if(i>=0)compared.splice(i,1);else{if(compared.length>=4){alert('Max 4 properties to compare');return}compared.push(id)}localStorage.setItem('eiq_cmp',JSON.stringify(compared));updCmpBar()}
+function updSavedBadge(){const b=document.getElementById('savedBadge');if(saved.length){b.style.display='inline';b.textContent=saved.length}else b.style.display='none'}
+function updCmpBar(){const bar=document.getElementById('cmpBar'),ct=document.getElementById('cmpCt');if(compared.length){bar.classList.add('vis');ct.textContent=compared.length}else bar.classList.remove('vis')}
+function cmpClearAll(){compared=[];localStorage.setItem('eiq_cmp','[]');updCmpBar()}
+
+// ===== LISTINGS =====
+function renderList(filter='all'){
+  const grid=document.getElementById('listGrid');
+  const f=filter==='all'?P:P.filter(p=>p.type.includes(filter));
+  if(!f.length){grid.innerHTML='<div class="no-res"><div class="no-res-i">&#9901;</div><div>No properties match your filters</div></div>';return}
+  grid.innerHTML=f.map((p,i)=>{
+    const tags=p.type.map(t=>`<span class="pc-tag ${t==='rental'?'t-r':t==='flip'?'t-f':'t-p'}">${t==='rental'?'Rental':t==='flip'?'Flip':'Residence'}</span>`).join('');
+    const isSaved=saved.includes(p.id),isCmp=compared.includes(p.id);
+    return `<div class="p-card${p.featured?' featured':''} anim-in" style="animation-delay:${i*.06}s" onclick="openMod(${p.id})">
+      <div class="pc-img-w"><img class="pc-img" src="${p.img}" alt="${p.addr}" loading="lazy"><div class="pc-tags">${tags}</div>
+      <button class="pc-save${isSaved?' on':''}" onclick="event.stopPropagation();toggleSave(${p.id});renderList('${filter}')">${isSaved?'&#9829;':'&#9825;'}</button>
+      <button class="pc-cmp${isCmp?' on':''}" onclick="event.stopPropagation();toggleCmp(${p.id});renderList('${filter}')" title="Compare">&#8644;</button></div>
+      <div class="pc-body"><div class="pc-price">$${p.price.toLocaleString()}</div><div class="pc-addr">${p.addr}</div>
+      <div class="pc-stats"><div class="pc-stat"><b>${p.beds}</b>Beds</div><div class="pc-stat"><b>${p.baths}</b>Baths</div><div class="pc-stat"><b>${p.sqft.toLocaleString()}</b>Sqft</div></div></div>
+      <div class="pc-foot"><div class="pc-roi"><span>Est. ROI </span>${p.roi}</div><button class="pc-btn" onclick="event.stopPropagation();openMod(${p.id})">Details</button></div></div>`;
+  }).join('');
+}
+function lChip(el){document.querySelectorAll('#listBar .tb-chip').forEach(c=>c.classList.remove('act'));el.classList.add('act');listFilt=el.dataset.t;renderList(listFilt)}
+
+// ===== SAVED VIEW =====
+function renderSaved(){
+  const grid=document.getElementById('savedGrid');
+  if(!saved.length){grid.innerHTML='<div class="saved-empty" style="grid-column:1/-1"><div class="saved-empty-i">&#9825;</div><div>No saved properties yet. Click the heart on any property to save it.</div></div>';return}
+  const f=P.filter(p=>saved.includes(p.id));
+  grid.innerHTML=f.map((p,i)=>{
+    const tags=p.type.map(t=>`<span class="pc-tag ${t==='rental'?'t-r':t==='flip'?'t-f':'t-p'}">${t==='rental'?'Rental':t==='flip'?'Flip':'Residence'}</span>`).join('');
+    return `<div class="p-card anim-in" style="animation-delay:${i*.06}s" onclick="openMod(${p.id})">
+      <div class="pc-img-w"><img class="pc-img" src="${p.img}" alt="${p.addr}" loading="lazy"><div class="pc-tags">${tags}</div>
+      <button class="pc-save on" onclick="event.stopPropagation();toggleSave(${p.id});renderSaved()">&#9829;</button></div>
+      <div class="pc-body"><div class="pc-price">$${p.price.toLocaleString()}</div><div class="pc-addr">${p.addr}</div>
+      <div class="pc-stats"><div class="pc-stat"><b>${p.beds}</b>Beds</div><div class="pc-stat"><b>${p.baths}</b>Baths</div><div class="pc-stat"><b>${p.sqft.toLocaleString()}</b>Sqft</div></div></div>
+      <div class="pc-foot"><div class="pc-roi"><span>Est. ROI </span>${p.roi}</div><button class="pc-btn" onclick="event.stopPropagation();openMod(${p.id})">Details</button></div></div>`;
   }).join('');
 }
 
-function toggleListingFilter(el) {
-  document.querySelectorAll('#listingsToolbar .toolbar-chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  listingFilter = el.dataset.type;
-  renderListings(listingFilter);
+// ===== COMPARE VIEW =====
+function renderCmp(){
+  const wrap=document.getElementById('cmpTable');
+  if(!compared.length){wrap.innerHTML='<div class="cmp-empty"><p>No properties selected for comparison.</p><p style="margin-top:.5rem;font-size:.82rem">Click the &#8644; button on any property card to add it.</p></div>';return}
+  const props=compared.map(id=>P.find(p=>p.id===id)).filter(Boolean);
+  wrap.innerHTML=`<table class="cmp-tbl">
+    <thead><tr><th>Property</th><th>Price</th><th>Beds</th><th>Baths</th><th>Sq Ft</th><th>Type</th><th>ROI</th><th>Walk</th><th>Schools</th><th>Safety</th><th></th></tr></thead>
+    <tbody>${props.map(p=>`<tr>
+      <td><div class="cmp-prop-cell"><img class="cmp-prop-img" src="${p.img}"><span class="cmp-prop-name">${p.addr}</span></div></td>
+      <td style="color:var(--gold);font-weight:700">$${p.price.toLocaleString()}</td>
+      <td>${p.beds}</td><td>${p.baths}</td><td>${p.sqft.toLocaleString()}</td>
+      <td>${p.type.map(t=>t.charAt(0).toUpperCase()+t.slice(1)).join(', ')}</td>
+      <td style="color:var(--green)">${p.roi}</td>
+      <td>${p.walk}</td><td>${p.school}/10</td><td>${10-p.crime}/10</td>
+      <td><button class="cmp-remove" onclick="toggleCmp(${p.id});renderCmp()">&times;</button></td>
+    </tr>`).join('')}</tbody></table>`;
 }
 
-function toggleSave(id, btn) {
-  if (savedProperties.has(id)) {
-    savedProperties.delete(id);
-    btn.innerHTML = '&#9825;';
-    btn.classList.remove('saved');
-  } else {
-    savedProperties.add(id);
-    btn.innerHTML = '&#9829;';
-    btn.classList.add('saved');
-  }
+// ===== CALCULATORS =====
+function calcMortgage(){
+  const price=+document.getElementById('m-price').value,dp=+document.getElementById('m-down').value/100,r=(+document.getElementById('m-rate').value/100)/12,n=+document.getElementById('m-term').value*12,tax=+document.getElementById('m-tax').value,ins=+document.getElementById('m-ins').value;
+  const loan=price*(1-dp),pi=r?loan*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1):loan/n,total=pi+tax/12+ins/12;
+  document.getElementById('m-total').textContent='$'+Math.round(total).toLocaleString();
+  document.getElementById('m-pi').textContent='$'+Math.round(pi).toLocaleString();
+  document.getElementById('m-ptax').textContent='$'+Math.round(tax/12).toLocaleString();
+  document.getElementById('m-pins').textContent='$'+Math.round(ins/12).toLocaleString();
+  document.getElementById('m-dp').textContent='$'+Math.round(price*dp).toLocaleString();
+  document.getElementById('m-loan').textContent='$'+Math.round(loan).toLocaleString();
+  document.getElementById('m-tint').textContent='$'+Math.round(pi*n-loan).toLocaleString();
+}
+function calcRental(){
+  const price=+document.getElementById('r-price').value,dp=+document.getElementById('r-down').value/100,r=(+document.getElementById('r-rate').value/100)/12,rent=+document.getElementById('r-rent').value,tax=+document.getElementById('r-tax').value,ins=+document.getElementById('r-ins').value,maint=+document.getElementById('r-maint').value,vac=+document.getElementById('r-vac').value/100;
+  const loan=price*(1-dp),pi=r?loan*(r*Math.pow(1+r,360))/(Math.pow(1+r,360)-1):loan/360;
+  const effRent=rent*(1-vac),ti=(tax+ins)/12,cf=effRent-pi-ti-maint;
+  const noi=(rent*12*(1-vac))-tax-ins-(maint*12),capRate=(noi/price*100),coc=(cf*12)/(price*dp)*100;
+  document.getElementById('r-cf').textContent=(cf>=0?'$':'-$')+Math.abs(Math.round(cf)).toLocaleString();
+  document.getElementById('r-cf').style.color=cf>=0?'var(--green)':'var(--red)';
+  document.getElementById('r-gross').textContent='$'+rent.toLocaleString();
+  document.getElementById('r-vloss').textContent='-$'+Math.round(rent*vac).toLocaleString();
+  document.getElementById('r-mort').textContent='$'+Math.round(pi).toLocaleString();
+  document.getElementById('r-ti').textContent='$'+Math.round(ti).toLocaleString();
+  document.getElementById('r-mt').textContent='$'+maint.toLocaleString();
+  document.getElementById('r-cap').textContent=capRate.toFixed(1)+'%';
+  document.getElementById('r-coc').textContent=coc.toFixed(1)+'%';
+}
+function calcFlip(){
+  const price=+document.getElementById('f-price').value,rehab=+document.getElementById('f-rehab').value,arv=+document.getElementById('f-arv').value,hold=+document.getElementById('f-hold').value,time=+document.getElementById('f-time').value,close=+document.getElementById('f-close').value/100;
+  const hcost=hold*time,ccost=arv*close,profit=arv-price-rehab-hcost-ccost,roi=(profit/(price+rehab))*100;
+  document.getElementById('f-profit').textContent=(profit>=0?'$':'-$')+Math.abs(Math.round(profit)).toLocaleString();
+  document.getElementById('f-profit').style.color=profit>=0?'var(--green)':'var(--red)';
+  document.getElementById('f-arvv').textContent='$'+arv.toLocaleString();
+  document.getElementById('f-cost').textContent='$'+(price+rehab).toLocaleString();
+  document.getElementById('f-hcost').textContent='$'+hcost.toLocaleString();
+  document.getElementById('f-ccost').textContent='$'+Math.round(ccost).toLocaleString();
+  document.getElementById('f-roi').textContent=roi.toFixed(1)+'%';document.getElementById('f-roi').style.color=roi>=0?'var(--green)':'var(--red)';
+}
+function calcBRRRR(){
+  const price=+document.getElementById('b-price').value,rehab=+document.getElementById('b-rehab').value,arv=+document.getElementById('b-arv').value,ltv=+document.getElementById('b-ltv').value/100,r=(+document.getElementById('b-rate').value/100)/12,rent=+document.getElementById('b-rent').value,exp=+document.getElementById('b-exp').value;
+  const invest=price+rehab,refiLoan=arv*ltv,cashBack=refiLoan-invest,leftIn=Math.max(0,invest-refiLoan);
+  const mortPay=r?refiLoan*(r*Math.pow(1+r,360))/(Math.pow(1+r,360)-1):refiLoan/360;
+  const cf=rent-mortPay-exp,coc=leftIn>0?(cf*12/leftIn*100):Infinity;
+  document.getElementById('b-left').textContent='$'+Math.round(leftIn).toLocaleString();
+  document.getElementById('b-left').style.color=leftIn<=0?'var(--green)':'var(--gold)';
+  document.getElementById('b-invest').textContent='$'+invest.toLocaleString();
+  document.getElementById('b-refi').textContent='$'+Math.round(refiLoan).toLocaleString();
+  document.getElementById('b-back').textContent=(cashBack>=0?'$':'-$')+Math.abs(Math.round(cashBack)).toLocaleString();
+  document.getElementById('b-back').style.color=cashBack>=0?'var(--green)':'var(--red)';
+  document.getElementById('b-mort').textContent='$'+Math.round(mortPay).toLocaleString();
+  document.getElementById('b-cf').textContent=(cf>=0?'$':'-$')+Math.abs(Math.round(cf)).toLocaleString();
+  document.getElementById('b-cf').style.color=cf>=0?'var(--green)':'var(--red)';
+  document.getElementById('b-coc').textContent=coc===Infinity?'∞':coc.toFixed(1)+'%';
+}
+function calcTab(el,id){
+  document.querySelectorAll('.calc-tab').forEach(t=>t.classList.remove('act'));el.classList.add('act');
+  document.querySelectorAll('.calc-panel').forEach(p=>p.classList.remove('act'));document.getElementById('cp-'+id).classList.add('act');
 }
 
-// ============ MODAL ============
-function openModal(id) {
-  const p = PROPERTIES.find(x => x.id === id);
-  if (!p) return;
-
-  document.getElementById('modalImg').src = p.img;
-  document.getElementById('modalPrice').textContent = `$${p.price.toLocaleString()}`;
-  document.getElementById('modalAddress').textContent = p.address;
-
-  document.getElementById('modalTags').innerHTML = p.type.map(t => {
-    const cls = t === 'rental' ? 'tag-rental' : t === 'flip' ? 'tag-flip' : 'tag-residential';
-    const label = t === 'rental' ? 'Rental' : t === 'flip' ? 'Flip Opportunity' : 'Primary Residence';
-    return `<span class="popup-tag ${cls}">${label}</span>`;
-  }).join('');
-
-  document.getElementById('modalStats').innerHTML = `
-    <div class="modal-stat-box"><div class="modal-stat-val">${p.beds}</div><div class="modal-stat-label">Bedrooms</div></div>
-    <div class="modal-stat-box"><div class="modal-stat-val">${p.baths}</div><div class="modal-stat-label">Bathrooms</div></div>
-    <div class="modal-stat-box"><div class="modal-stat-val">${p.sqft.toLocaleString()}</div><div class="modal-stat-label">Sq Ft</div></div>
-    <div class="modal-stat-box"><div class="modal-stat-val">${p.roi}</div><div class="modal-stat-label">Est. ROI</div></div>
-  `;
-
-  document.getElementById('modalDesc').textContent = p.desc;
-  document.getElementById('modalOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeModal(e) {
-  if (e.target === document.getElementById('modalOverlay')) {
-    closeModalDirect();
-  }
-}
-function closeModalDirect() {
-  document.getElementById('modalOverlay').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-// ============ NAVIGATION ============
-function switchView(viewId) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById(viewId).classList.add('active');
-
-  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-  document.querySelector(`.nav-link[data-view="${viewId}"]`).classList.add('active');
-
-  // Close mobile nav
+// ===== NAVIGATION =====
+function go(v){
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('act'));
+  document.getElementById(v).classList.add('act');
+  document.querySelectorAll('.nav-l').forEach(l=>l.classList.remove('act'));
+  const nl=document.querySelector(`.nav-l[data-v="${v}"]`);if(nl)nl.classList.add('act');
   document.getElementById('navLinks').classList.remove('open');
-
-  if (viewId === 'map-view' && map) {
-    setTimeout(() => map.invalidateSize(), 100);
-  }
-  if (viewId === 'listings-view') {
-    renderListings(listingFilter);
-  }
+  if(v==='map-view'&&map){setTimeout(()=>{if(window._useGoogle)google.maps.event.trigger(map,'resize');else map.invalidateSize()},100)}
+  if(v==='list-view')renderList(listFilt);
+  if(v==='saved-view')renderSaved();
+  if(v==='cmp-view')renderCmp();
 }
 
-function goHome() {
-  switchView('map-view');
-}
+// Close modals on Escape
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){modClose();caClose();mqClose()}});
 
-function toggleMobileNav() {
-  document.getElementById('navLinks').classList.toggle('open');
-}
-
-// Close modal on Escape
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeModalDirect();
-});
-
-// ============ INIT ============
-window.addEventListener('load', initIntro);
+// ===== INIT =====
+window.addEventListener('load',()=>{initIntro();updSavedBadge();updCmpBar();calcMortgage()});
 </script>
 </body>
 </html>

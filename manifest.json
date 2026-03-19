@@ -1,0 +1,16 @@
+{
+  "name": "Estate IQ",
+  "short_name": "EstateIQ",
+  "description": "Intelligent Property Discovery — find rentals, flips, and dream homes",
+  "start_url": "/estateiq/",
+  "display": "standalone",
+  "background_color": "#0a0a0c",
+  "theme_color": "#0a0a0c",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230a0a0c' width='100' height='100' rx='20'/><text x='50' y='62' text-anchor='middle' font-size='40' font-family='serif' font-weight='bold' fill='%23c9a84c'>EIQ</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
